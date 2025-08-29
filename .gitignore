@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.venv/
+venv/
+.env
+
+# IDE / OS
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Logs & reports
+logs/
+*.log
+reports/
+
+# Data & indices
+/data/processed/index.faiss
+/data/processed/*.json
+/data/processed/*.jsonl
+/data/extracted/
+/data/company_policies/
+/data/fine_tune/
+
+# Models & checkpoints
+models/
+smartaudit/models/
+
+# Cache
+.cache/
+.huggingface/
+
+# Node / web build (if any)
+web/node_modules/
+web/dist/

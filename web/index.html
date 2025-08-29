@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SmartAudit Search</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; margin: 0; padding: 0; }
+    header { padding: 16px; background: #0f172a; color: #fff; }
+    main { padding: 16px; max-width: 960px; margin: 0 auto; }
+    .search { display: flex; gap: 8px; margin-bottom: 16px; }
+    input[type="text"] { flex: 1; padding: 10px 12px; font-size: 16px; border-radius: 8px; border: 1px solid #94a3b8; }
+    button { padding: 10px 14px; border: 0; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; font-size: 16px; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .meta { color: #64748b; font-size: 14px; margin: 8px 0 16px; }
+    .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background: #ffffff10; }
+    .src { font-weight: 600; font-size: 14px; color: #334155; margin-bottom: 6px; }
+    .snippet { white-space: pre-wrap; }
+    footer { padding: 12px 16px; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; margin-top: 24px; }
+    .row { display: flex; gap: 12px; align-items: center; }
+    .row > * { margin: 0; }
+    .k { width: 64px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SmartAudit Search</h1>
+  </header>
+  <main>
+    <div class="search">
+      <input id="q" type="text" placeholder="Search (e.g., data subject rights)" />
+      <input id="k" class="k" type="number" min="1" max="20" value="5" />
+      <label class="row"><input id="rerank" type="checkbox" /> rerank</label>
+      <input id="pre_k" class="k" type="number" min="1" max="200" value="40" title="pre_k for rerank" />
+      <button id="go">Search</button>
+      <button id="synth">Synthesize</button>
+      <button id="prompt">Prompt</button>
+      <button id="gen">Generate</button>
+    </div>
+    <div class="row" style="margin-bottom:12px">
+      <input id="apiKey" type="password" placeholder="X-API-Key (optional)" style="flex:1" />
+      <input id="model" type="text" placeholder="Model (optional, e.g., gpt-4o-mini)" style="flex:1" />
+    </div>
+    <div class="meta" id="meta">Ready.</div>
+    <div id="results"></div>
+  </main>
+  <footer>
+    SmartAudit RAG UI · Calls GET /answer on the backend API
+  </footer>
+  <script>
+    const API_BASE = location.origin; // same-origin API
+    const qEl = document.getElementById('q');
+    const kEl = document.getElementById('k');
+    const rerankEl = document.getElementById('rerank');
+    const preKEl = document.getElementById('pre_k');
+    const goEl = document.getElementById('go');
+    const synthEl = document.getElementById('synth');
+    const promptEl = document.getElementById('prompt');
+    const genEl = document.getElementById('gen');
+    const metaEl = document.getElementById('meta');
+    const resultsEl = document.getElementById('results');
+    const apiKeyEl = document.getElementById('apiKey');
+    const modelEl = document.getElementById('model');
+
+    function uiBusy(b) {
+      goEl.disabled = b; synthEl.disabled = b; promptEl.disabled = b; genEl.disabled = b;
+    }
+
+    function updateMetaFromHeaders(res, baseMsg) {
+      const tid = res.headers.get('X-Trace-Id');
+      const ltid = res.headers.get('X-Langfuse-Trace-Id');
+      const parts = [baseMsg];
+      if (tid) parts.push(`trace=${tid}`);
+      if (ltid) parts.push(`langfuse=${ltid}`);
+      metaEl.textContent = parts.join(' · ');
+    }
+
+    function commonParams(url) {
+      const k = Math.max(1, Math.min(20, Number(kEl.value||5)));
+      url.searchParams.set('k', String(k));
+      if (rerankEl.checked) url.searchParams.set('rerank', 'true');
+      const pk = Math.max(1, Math.min(200, Number(preKEl.value||40)));
+      if (rerankEl.checked && pk) url.searchParams.set('pre_k', String(pk));
+    }
+
+    function commonHeaders() {
+      const headers = { 'Content-Type': 'application/json' };
+      const key = apiKeyEl.value.trim();
+      if (key) headers['X-API-Key'] = key;
+      return headers;
+    }
+
+    async function search() {
+      const q = qEl.value.trim();
+      if (!q) return;
+      uiBusy(true); resultsEl.innerHTML = ''; metaEl.textContent = 'Searching...';
+      try {
+        const url = new URL('/answer', API_BASE);
+        url.searchParams.set('q', q);
+        commonParams(url);
+        const res = await fetch(url.toString(), { headers: commonHeaders() });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        updateMetaFromHeaders(res, `Got ${data.length} results`);
+        for (const r of data) {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `
+            <div class="src">${r.source} · chunk ${r.chunk_id} · score ${r.score.toFixed(3)}</div>
+            <div class="snippet">${escapeHtml(snippet(r.text))}</div>
+          `;
+          resultsEl.appendChild(card);
+        }
+      } catch (e) {
+        metaEl.textContent = 'Error: ' + e.message;
+      } finally {
+        uiBusy(false);
+      }
+    }
+
+    async function synthesize() {
+      const q = qEl.value.trim();
+      if (!q) return;
+      uiBusy(true); resultsEl.innerHTML = ''; metaEl.textContent = 'Synthesizing...';
+      try {
+        const url = new URL('/synthesize', API_BASE);
+        url.searchParams.set('q', q);
+        commonParams(url);
+        const res = await fetch(url.toString(), { headers: commonHeaders() });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        updateMetaFromHeaders(res, 'Done');
+        const card = document.createElement('div');
+        card.className = 'card';
+        const cites = (data.citations||[]).map((c,i)=>`[#${i+1} ${c.source}#${c.chunk_id}]`).join(' ');
+        card.innerHTML = `
+          <div class="src">Synthesis for: ${escapeHtml(data.query)}</div>
+          <div class="snippet">${escapeHtml(data.answer)}</div>
+          <div class="meta">${escapeHtml(cites)}</div>
+        `;
+        resultsEl.appendChild(card);
+      } catch (e) { metaEl.textContent = 'Error: ' + e.message; }
+      finally { uiBusy(false); }
+    }
+
+    async function promptBuild() {
+      const q = qEl.value.trim();
+      if (!q) return;
+      uiBusy(true); resultsEl.innerHTML = ''; metaEl.textContent = 'Building prompt...';
+      try {
+        const url = new URL('/prompt', API_BASE);
+        url.searchParams.set('q', q);
+        commonParams(url);
+        const res = await fetch(url.toString(), { headers: commonHeaders() });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        updateMetaFromHeaders(res, 'Prompt ready');
+        const card = document.createElement('div');
+        card.className = 'card';
+        const srcs = (data.sources||[]).map((s,i)=>`[#${i+1} ${s.source}#${s.chunk_id}]`).join(' ');
+        card.innerHTML = `
+          <div class="src">Prompt for: ${escapeHtml(data.query)}</div>
+          <pre class="snippet" style="white-space:pre-wrap">${escapeHtml(data.prompt)}</pre>
+          <div class="meta">${escapeHtml(srcs)}</div>
+        `;
+        resultsEl.appendChild(card);
+      } catch (e) { metaEl.textContent = 'Error: ' + e.message; }
+      finally { uiBusy(false); }
+    }
+
+    async function generate() {
+      const q = qEl.value.trim();
+      if (!q) return;
+      uiBusy(true); resultsEl.innerHTML = ''; metaEl.textContent = 'Generating...';
+      try {
+        const res = await fetch(new URL('/generate', API_BASE).toString(), {
+          method: 'POST',
+          headers: commonHeaders(),
+          body: JSON.stringify({ q, k: Number(kEl.value||5), rerank: !!rerankEl.checked, pre_k: Number(preKEl.value||40), model: modelEl.value.trim()||undefined })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        updateMetaFromHeaders(res, data.ok ? 'Generated' : 'Generation error');
+        const card = document.createElement('div');
+        card.className = 'card';
+        const cites = (data.citations||[]).map((c,i)=>`[#${i+1} ${c.source}#${c.chunk_id}]`).join(' ');
+        card.innerHTML = `
+          <div class="src">Answer for: ${escapeHtml(data.query)}</div>
+          <div class="snippet">${escapeHtml(data.answer||'')}</div>
+          ${data.error ? `<div class="meta">Error: ${escapeHtml(data.error)}</div>`:''}
+          <div class="meta">${escapeHtml(cites)}</div>
+        `;
+        resultsEl.appendChild(card);
+      } catch (e) { metaEl.textContent = 'Error: ' + e.message; }
+      finally { uiBusy(false); }
+    }
+
+    function snippet(text) {
+      const t = (text||'').replace(/\s+/g, ' ').trim();
+      return t.length > 500 ? t.slice(0, 500) + '…' : t;
+    }
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+    }
+
+    goEl.addEventListener('click', search);
+    synthEl.addEventListener('click', synthesize);
+    promptEl.addEventListener('click', promptBuild);
+    genEl.addEventListener('click', generate);
+    qEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
+  </script>
+</body>
+</html>

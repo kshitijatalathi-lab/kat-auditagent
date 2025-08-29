@@ -167,16 +167,7 @@ In the “Chat” tab:
 - Providers: `auto | gemini | openai | local | ollama` (Gemini requires `google-generativeai`).
 - Submit feedback; logs written to `smartaudit/logs/prompts_log.jsonl`.
 
-## Audit Checklist & Report — Week 2 demo
 
-Use the “Audit Checklist” tab to run a guided audit and export a report.
-
-- Choose checklist: currently `Data Privacy` from `smartaudit/audit_flows/data_privacy.py`.
-- For each question:
-  - Enter your answer.
-  - Click “Generate AI Feedback” to get an assessment grounded via RAG.
-- Click “Export Report (PDF/TXT)” to save an audit report to `smartaudit/reports/`.
-  - PDF export requires `reportlab`; otherwise a plaintext report is created.
 
 ## Notes on local fine‑tuned models
 

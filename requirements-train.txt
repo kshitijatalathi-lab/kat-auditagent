@@ -1,9 +1,0 @@
-# Extra training dependencies (GPU recommended)
-unsloth>=2024.5.0
-transformers>=4.42.0
-datasets>=2.19.0
-accelerate>=0.31.0
-bitsandbytes>=0.43.0
-peft>=0.11.1
-# Install torch separately matching your CUDA version, e.g.:
-# pip install --index-url https://download.pytorch.org/whl/cu121 torch torchvision torchaudio

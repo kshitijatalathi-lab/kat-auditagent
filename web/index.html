@@ -3,53 +3,174 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SmartAudit Search</title>
+  <title>SmartAudit</title>
   <style>
     :root { color-scheme: light dark; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; margin: 0; padding: 0; }
     header { padding: 16px; background: #0f172a; color: #fff; }
-    main { padding: 16px; max-width: 960px; margin: 0 auto; }
-    .search { display: flex; gap: 8px; margin-bottom: 16px; }
-    input[type="text"] { flex: 1; padding: 10px 12px; font-size: 16px; border-radius: 8px; border: 1px solid #94a3b8; }
-    button { padding: 10px 14px; border: 0; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; font-size: 16px; }
+    main { display: grid; grid-template-columns: 220px 1fr; gap: 16px; padding: 16px; max-width: 1200px; margin: 0 auto; }
+    nav { border-right: 1px solid #e2e8f0; padding-right: 12px; }
+    nav .tab { display: block; padding: 10px 12px; border-radius: 8px; color: #0f172a; text-decoration: none; margin-bottom: 6px; cursor: pointer; }
+    nav .tab.active { background: #e2e8f0; font-weight: 600; }
+    section { display: none; }
+    section.active { display: block; }
+    h2 { margin: 0 0 12px; }
+    .search { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    input[type="text"], input[type="number"], input[type="password"], input[type="file"], textarea, select { flex: 1; padding: 10px 12px; font-size: 15px; border-radius: 8px; border: 1px solid #94a3b8; }
+    textarea { min-height: 100px; }
+    label { font-size: 13px; color: #475569; }
+    button { padding: 10px 14px; border: 0; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; font-size: 15px; }
+    button.secondary { background: #64748b; }
     button:disabled { opacity: .6; cursor: not-allowed; }
     .meta { color: #64748b; font-size: 14px; margin: 8px 0 16px; }
     .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background: #ffffff10; }
     .src { font-weight: 600; font-size: 14px; color: #334155; margin-bottom: 6px; }
     .snippet { white-space: pre-wrap; }
-    footer { padding: 12px 16px; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; margin-top: 24px; }
-    .row { display: flex; gap: 12px; align-items: center; }
+    footer { padding: 12px 16px; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; margin-top: 24px; grid-column: 1 / -1; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     .row > * { margin: 0; }
     .k { width: 64px; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e2e8f0; color: #0f172a; }
   </style>
 </head>
 <body>
   <header>
-    <h1>SmartAudit Search</h1>
+    <h1>SmartAudit</h1>
   </header>
   <main>
-    <div class="search">
-      <input id="q" type="text" placeholder="Search (e.g., data subject rights)" />
-      <input id="k" class="k" type="number" min="1" max="20" value="5" />
-      <label class="row"><input id="rerank" type="checkbox" /> rerank</label>
-      <input id="pre_k" class="k" type="number" min="1" max="200" value="40" title="pre_k for rerank" />
-      <button id="go">Search</button>
-      <button id="synth">Synthesize</button>
-      <button id="prompt">Prompt</button>
-      <button id="gen">Generate</button>
-    </div>
-    <div class="row" style="margin-bottom:12px">
-      <input id="apiKey" type="password" placeholder="X-API-Key (optional)" style="flex:1" />
-      <input id="model" type="text" placeholder="Model (optional, e.g., gpt-4o-mini)" style="flex:1" />
-    </div>
-    <div class="meta" id="meta">Ready.</div>
-    <div id="results"></div>
+    <nav>
+      <a class="tab active" data-tab="search">Search</a>
+      <a class="tab" data-tab="upload">Upload & Index</a>
+      <a class="tab" data-tab="dashboard">Dashboard</a>
+      <a class="tab" data-tab="checklist">Checklist</a>
+      <a class="tab" data-tab="score">Score</a>
+      <a class="tab" data-tab="gaps">Gaps</a>
+      <a class="tab" data-tab="annotate">Annotate PDF</a>
+      <a class="tab" data-tab="report">Report</a>
+      <div style="margin-top:16px">
+        <div style="font-size:12px; color:#64748b">Headers</div>
+        <input id="apiKey" type="password" placeholder="X-API-Key (optional)" />
+        <input id="model" type="text" placeholder="Model override (optional)" />
+        <input id="apiBase" type="text" placeholder="API base (default: same origin)" />
+      </div>
+    </nav>
+
+    <section id="tab-search" class="active">
+      <h2>Semantic Search</h2>
+      <div class="search">
+        <input id="q" type="text" placeholder="Search (e.g., data subject rights)" />
+        <input id="k" class="k" type="number" min="1" max="20" value="5" />
+        <label class="row"><input id="rerank" type="checkbox" /> rerank</label>
+        <input id="pre_k" class="k" type="number" min="1" max="200" value="40" title="pre_k for rerank" />
+        <button id="go">Search</button>
+        <button id="synth">Synthesize</button>
+        <button id="prompt">Prompt</button>
+        <button id="gen">Generate</button>
+      </div>
+      <div class="meta" id="meta">Ready.</div>
+      <div id="results"></div>
+    </section>
+
+    <section id="tab-dashboard">
+      <h2>Audit Dashboard</h2>
+      <div id="dbMeta" class="meta">Run a batch score to populate the dashboard.</div>
+      <div id="dbComposite" class="card"></div>
+      <div class="card">
+        <div class="src">Score Distribution</div>
+        <div id="dbDist"></div>
+      </div>
+      <div class="card">
+        <div class="src">Top Gaps</div>
+        <div id="dbGaps"></div>
+      </div>
+    </section>
+
+    <section id="tab-upload">
+      <h2>Upload & Index</h2>
+      <div class="row">
+        <input id="file" type="file" />
+        <button id="uploadBtn">Upload</button>
+        <span id="uploadMeta" class="meta"></span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="indexFiles" type="text" placeholder="Comma-separated server paths (e.g., uploads/doc.pdf)" />
+        <button id="indexBtn">Index</button>
+        <span id="indexMeta" class="meta"></span>
+      </div>
+      <div id="indexOut"></div>
+    </section>
+
+    <section id="tab-checklist">
+      <h2>Generate Checklist</h2>
+      <div class="row">
+        <select id="chkFramework">
+          <option>GDPR</option>
+          <option>DPDP</option>
+          <option>HIPAA</option>
+        </select>
+        <input id="chkFiles" type="text" placeholder="Comma-separated server paths (e.g., uploads/policy.pdf)" />
+        <input id="chkTopN" class="k" type="number" min="1" max="100" value="20" />
+        <button id="chkGenBtn">Generate</button>
+      </div>
+      <div id="chkMeta" class="meta"></div>
+      <div id="chkList"></div>
+    </section>
+
+    <section id="tab-score">
+      <h2>Score Answers</h2>
+      <div class="row">
+        <select id="scFramework">
+          <option>GDPR</option>
+          <option>DPDP</option>
+          <option>HIPAA</option>
+        </select>
+        <input id="scSession" type="text" placeholder="session id" value="sess-ui" />
+        <input id="scOrg" type="text" placeholder="org id" value="acme" />
+        <input id="scUser" type="text" placeholder="user id" value="auditor-ui" />
+        <input id="scK" class="k" type="number" min="1" max="10" value="5" />
+        <button id="scAdd">Add item</button>
+        <button id="scRun">Run batch</button>
+      </div>
+      <div id="scItems"></div>
+      <div id="scOut"></div>
+    </section>
+
+    <section id="tab-gaps">
+      <h2>Gap Analysis</h2>
+      <div class="row">
+        <input id="gaMin" class="k" type="number" min="1" max="5" value="4" />
+        <button id="gaRun">Analyze from last score</button>
+      </div>
+      <div id="gaOut"></div>
+    </section>
+
+    <section id="tab-annotate">
+      <h2>Annotate Policy PDF</h2>
+      <div class="row">
+        <input id="anFile" type="text" placeholder="Server file path (e.g., uploads/policy.pdf)" />
+        <button id="anRun">Annotate with last gaps</button>
+      </div>
+      <div id="anOut"></div>
+    </section>
+
+    <section id="tab-report">
+      <h2>Generate Report</h2>
+      <div class="row">
+        <input id="rpSession" type="text" placeholder="session id" value="sess-ui" />
+        <input id="rpOrg" type="text" placeholder="org id" value="acme" />
+        <button id="rpRun">Create from last score</button>
+      </div>
+      <div id="rpOut"></div>
+    </section>
   </main>
   <footer>
-    SmartAudit RAG UI · Calls GET /answer on the backend API
+    SmartAudit UI · End-to-end: Upload → Index → Checklist → Score → Gaps → Annotate → Report
   </footer>
   <script>
-    const API_BASE = location.origin; // same-origin API
+    function API_BASE() {
+      const v = (document.getElementById('apiBase')?.value||'').trim();
+      return v || location.origin;
+    }
     const qEl = document.getElementById('q');
     const kEl = document.getElementById('k');
     const rerankEl = document.getElementById('rerank');
@@ -62,6 +183,26 @@
     const resultsEl = document.getElementById('results');
     const apiKeyEl = document.getElementById('apiKey');
     const modelEl = document.getElementById('model');
+
+    // Tabs
+    const tabs = document.querySelectorAll('nav .tab');
+    const sections = {
+      search: document.getElementById('tab-search'),
+      upload: document.getElementById('tab-upload'),
+      dashboard: document.getElementById('tab-dashboard'),
+      checklist: document.getElementById('tab-checklist'),
+      score: document.getElementById('tab-score'),
+      gaps: document.getElementById('tab-gaps'),
+      annotate: document.getElementById('tab-annotate'),
+      report: document.getElementById('tab-report'),
+    };
+    tabs.forEach(t => t.addEventListener('click', () => {
+      tabs.forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      Object.values(sections).forEach(s => s.classList.remove('active'));
+      const key = t.dataset.tab;
+      sections[key]?.classList.add('active');
+    }));
 
     function uiBusy(b) {
       goEl.disabled = b; synthEl.disabled = b; promptEl.disabled = b; genEl.disabled = b;
@@ -96,7 +237,7 @@
       if (!q) return;
       uiBusy(true); resultsEl.innerHTML = ''; metaEl.textContent = 'Searching...';
       try {
-        const url = new URL('/answer', API_BASE);
+        const url = new URL('/answer', API_BASE());
         url.searchParams.set('q', q);
         commonParams(url);
         const res = await fetch(url.toString(), { headers: commonHeaders() });
@@ -124,7 +265,7 @@
       if (!q) return;
       uiBusy(true); resultsEl.innerHTML = ''; metaEl.textContent = 'Synthesizing...';
       try {
-        const url = new URL('/synthesize', API_BASE);
+        const url = new URL('/synthesize', API_BASE());
         url.searchParams.set('q', q);
         commonParams(url);
         const res = await fetch(url.toString(), { headers: commonHeaders() });
@@ -149,7 +290,7 @@
       if (!q) return;
       uiBusy(true); resultsEl.innerHTML = ''; metaEl.textContent = 'Building prompt...';
       try {
-        const url = new URL('/prompt', API_BASE);
+        const url = new URL('/prompt', API_BASE());
         url.searchParams.set('q', q);
         commonParams(url);
         const res = await fetch(url.toString(), { headers: commonHeaders() });
@@ -174,7 +315,7 @@
       if (!q) return;
       uiBusy(true); resultsEl.innerHTML = ''; metaEl.textContent = 'Generating...';
       try {
-        const res = await fetch(new URL('/generate', API_BASE).toString(), {
+        const res = await fetch(new URL('/generate', API_BASE()).toString(), {
           method: 'POST',
           headers: commonHeaders(),
           body: JSON.stringify({ q, k: Number(kEl.value||5), rerank: !!rerankEl.checked, pre_k: Number(preKEl.value||40), model: modelEl.value.trim()||undefined })
@@ -196,6 +337,199 @@
       finally { uiBusy(false); }
     }
 
+    // ---------- Upload & Index ----------
+    const fileEl = document.getElementById('file');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadMeta = document.getElementById('uploadMeta');
+    const indexFilesEl = document.getElementById('indexFiles');
+    const indexBtn = document.getElementById('indexBtn');
+    const indexMeta = document.getElementById('indexMeta');
+    const indexOut = document.getElementById('indexOut');
+
+    uploadBtn.addEventListener('click', async () => {
+      if (!fileEl.files?.length) { uploadMeta.textContent = 'Select a file'; return; }
+      const fd = new FormData();
+      fd.append('file', fileEl.files[0]);
+      uploadMeta.textContent = 'Uploading...';
+      const res = await fetch(new URL('/adk/upload', API_BASE()), { method: 'POST', body: fd });
+      const data = await res.json();
+      uploadMeta.textContent = res.ok ? `Uploaded: ${data.filename} → ${data.path}` : 'Upload failed';
+      if (res.ok) {
+        // prefill index path
+        indexFilesEl.value = (indexFilesEl.value ? indexFilesEl.value + ', ' : '') + data.path;
+      }
+    });
+
+    indexBtn.addEventListener('click', async () => {
+      const files = indexFilesEl.value.split(',').map(s => s.trim()).filter(Boolean);
+      if (!files.length) { indexMeta.textContent = 'Provide file paths'; return; }
+      indexMeta.textContent = 'Indexing...'; indexOut.innerHTML = '';
+      const res = await fetch(new URL('/adk/index', API_BASE()), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files })
+      });
+      const data = await res.json();
+      indexMeta.textContent = res.ok ? `Indexed ${data.count} chunks` : 'Index failed';
+      if (res.ok) {
+        const card = document.createElement('div'); card.className = 'card';
+        card.innerHTML = `<div class="src">Index</div><div class="snippet">index: ${data.index_path}\nmeta: ${data.meta_path}</div>`;
+        indexOut.appendChild(card);
+      }
+    });
+
+    // ---------- Checklist ----------
+    const chkFramework = document.getElementById('chkFramework');
+    const chkFiles = document.getElementById('chkFiles');
+    const chkTopN = document.getElementById('chkTopN');
+    const chkGenBtn = document.getElementById('chkGenBtn');
+    const chkMeta = document.getElementById('chkMeta');
+    const chkList = document.getElementById('chkList');
+    let lastChecklist = [];
+
+    chkGenBtn.addEventListener('click', async () => {
+      const framework = chkFramework.value;
+      const files = chkFiles.value.split(',').map(s => s.trim()).filter(Boolean);
+      const top_n = Number(chkTopN.value||20);
+      if (!files.length) { chkMeta.textContent = 'Provide file paths'; return; }
+      chkMeta.textContent = 'Generating...'; chkList.innerHTML = '';
+      const res = await fetch(new URL('/adk/checklist/generate', API_BASE()), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ framework, files, top_n })
+      });
+      const data = await res.json();
+      if (!res.ok) { chkMeta.textContent = 'Error'; return; }
+      lastChecklist = data.items || [];
+      chkMeta.textContent = `${data.framework} v${data.version} · ${lastChecklist.length} items`;
+      for (const it of lastChecklist) {
+        const card = document.createElement('div'); card.className = 'card';
+        card.innerHTML = `<div class="src">${escapeHtml(it.category||'Item')}</div><div class="snippet">${escapeHtml(it.question||'')}</div>`;
+        chkList.appendChild(card);
+      }
+    });
+
+    // ---------- Score ----------
+    const scFramework = document.getElementById('scFramework');
+    const scSession = document.getElementById('scSession');
+    const scOrg = document.getElementById('scOrg');
+    const scUser = document.getElementById('scUser');
+    const scK = document.getElementById('scK');
+    const scAdd = document.getElementById('scAdd');
+    const scRun = document.getElementById('scRun');
+    const scItems = document.getElementById('scItems');
+    const scOut = document.getElementById('scOut');
+    let scoreItems = [];
+    let lastScore = null;
+
+    function addScoreItem(q='', a='') {
+      const idx = scoreItems.length;
+      scoreItems.push({ question: q, user_answer: a });
+      const wrap = document.createElement('div'); wrap.className = 'card';
+      wrap.innerHTML = `
+        <div class="row">
+          <input data-i="${idx}" data-k="q" type="text" placeholder="Question" value="${escapeHtml(q)}" />
+        </div>
+        <div class="row" style="margin-top:8px">
+          <textarea data-i="${idx}" data-k="a" placeholder="Your answer">${escapeHtml(a)}</textarea>
+        </div>`;
+      wrap.addEventListener('input', (e) => {
+        const t = e.target;
+        if (!t.dataset) return;
+        const i = Number(t.dataset.i);
+        const k = t.dataset.k;
+        if (k === 'q') scoreItems[i].question = t.value;
+        if (k === 'a') scoreItems[i].user_answer = t.value;
+      });
+      scItems.appendChild(wrap);
+    }
+
+    scAdd.addEventListener('click', () => {
+      const seed = (lastChecklist && lastChecklist[scoreItems.length]) ? lastChecklist[scoreItems.length].question : '';
+      addScoreItem(seed, '');
+    });
+
+    scRun.addEventListener('click', async () => {
+      const items = scoreItems.filter(it => (it.question||'').trim());
+      if (!items.length) { scOut.innerHTML = '<div class="meta">Add at least one item</div>'; return; }
+      scOut.innerHTML = '<div class="meta">Scoring...</div>';
+      const payload = {
+        session_id: scSession.value||'sess-ui', org_id: scOrg.value||'acme', user_id: scUser.value||'auditor-ui',
+        framework: scFramework.value||'GDPR', items, k: Number(scK.value||5)
+      };
+      const res = await fetch(new URL('/adk/score/batch', API_BASE()), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) { scOut.innerHTML = '<div class="meta">Error in scoring</div>'; return; }
+      lastScore = data;
+      const cards = [];
+      for (const it of (data.items||[])) {
+        const cites = (it.clauses||[]).map((c,i)=>`[#${i+1} ${c.source||''}#${c.chunk_id||''}]`).join(' ');
+        cards.push(`<div class="card"><div class="src">${escapeHtml(it.question||'')}</div><div class="snippet">Score: <span class="pill">${it.score}</span> · ${escapeHtml(it.rationale||'')}</div><div class="meta">${escapeHtml(cites)}</div></div>`);
+      }
+      scOut.innerHTML = `<div class="meta">Composite score: <span class="pill">${(data.composite_score||0).toFixed(2)}</span></div>` + cards.join('');
+      // update dashboard
+      updateDashboard();
+    });
+
+    // ---------- Gaps ----------
+    const gaMin = document.getElementById('gaMin');
+    const gaOut = document.getElementById('gaOut');
+    let lastGaps = null;
+
+    document.getElementById('gaRun').addEventListener('click', async () => {
+      if (!lastScore) { gaOut.innerHTML = '<div class="meta">Run scoring first</div>'; return; }
+      gaOut.innerHTML = '<div class="meta">Analyzing...</div>';
+      const res = await fetch(new URL('/adk/gaps', API_BASE()), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scored_items: lastScore.items||[], min_score: Number(gaMin.value||4) })
+      });
+      const data = await res.json();
+      if (!res.ok) { gaOut.innerHTML = '<div class="meta">Error</div>'; return; }
+      lastGaps = data;
+      const cards = [];
+      for (const it of (data.items||[])) {
+        cards.push(`<div class="card"><div class="src">${escapeHtml(it.question||'')}</div><div class="snippet">Suggested: ${escapeHtml(it.suggestion||'')}</div></div>`);
+      }
+      gaOut.innerHTML = `<div class="meta">Gaps: ${data.count||0}</div>` + cards.join('');
+      // update dashboard
+      updateDashboard();
+    });
+
+    // ---------- Annotate ----------
+    const anFile = document.getElementById('anFile');
+    const anOut = document.getElementById('anOut');
+    document.getElementById('anRun').addEventListener('click', async () => {
+      if (!lastGaps) { anOut.innerHTML = '<div class="meta">Run gap analysis first</div>'; return; }
+      anOut.innerHTML = '<div class="meta">Annotating...</div>';
+      const res = await fetch(new URL('/adk/policy/annotate', API_BASE()), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: anFile.value.trim(), gaps: lastGaps.items||[] })
+      });
+      const data = await res.json();
+      if (!res.ok) { anOut.innerHTML = '<div class="meta">Error</div>'; return; }
+      const link = data.annotated_path ? `<a href="/${data.annotated_path}" target="_blank">Download annotated PDF</a>` : '';
+      anOut.innerHTML = `<div class="card"><div class="src">Annotated</div><div class="snippet">${escapeHtml(data.annotated_path||'')}</div><div class="meta">${link}</div></div>`;
+    });
+
+    // ---------- Report ----------
+    const rpSession = document.getElementById('rpSession');
+    const rpOrg = document.getElementById('rpOrg');
+    const rpOut = document.getElementById('rpOut');
+    document.getElementById('rpRun').addEventListener('click', async () => {
+      if (!lastScore) { rpOut.innerHTML = '<div class="meta">Run scoring first</div>'; return; }
+      rpOut.innerHTML = '<div class="meta">Creating report...</div>';
+      const items = (lastScore.items||[]).map(it => ({
+        question: it.question, user_answer: it.user_answer, score: it.score, rationale: it.rationale, llm_provider: it.llm_provider||'groq', llm_model: it.llm_model||'' , clauses: it.clauses||[]
+      }));
+      const res = await fetch(new URL('/adk/report', API_BASE()), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: rpSession.value||'sess-ui', org_id: rpOrg.value||'acme', items })
+      });
+      const data = await res.json();
+      if (!res.ok) { rpOut.innerHTML = '<div class="meta">Error</div>'; return; }
+      rpOut.innerHTML = `<div class="card"><div class="src">Report</div><div class="snippet">JSON: ${escapeHtml(data.json_path||'')}\nPDF: ${escapeHtml(data.pdf_path||'')}</div></div>`;
+    });
+
     function snippet(text) {
       const t = (text||'').replace(/\s+/g, ' ').trim();
       return t.length > 500 ? t.slice(0, 500) + '…' : t;
@@ -204,11 +538,47 @@
       return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
     }
 
+    function updateDashboard() {
+      const dbMeta = document.getElementById('dbMeta');
+      const dbComposite = document.getElementById('dbComposite');
+      const dbDist = document.getElementById('dbDist');
+      const dbGaps = document.getElementById('dbGaps');
+      if (!dbMeta) return;
+      if (!lastScore || !lastScore.items) {
+        dbMeta.textContent = 'No scoring data yet.';
+        dbComposite.innerHTML = '';
+        dbDist.innerHTML = '';
+      } else {
+        const comp = (lastScore.composite_score||0).toFixed(2);
+        dbMeta.textContent = `Items: ${(lastScore.items||[]).length}`;
+        dbComposite.innerHTML = `<div class="src">Composite score</div><div class="snippet" style="font-size:28px">${comp} / 5</div>`;
+        const counts = [0,0,0,0,0,0];
+        for (const it of (lastScore.items||[])) {
+          const s = Math.max(0, Math.min(5, Math.round(Number(it.score)||0)));
+          counts[s] += 1;
+        }
+        const total = counts.reduce((a,b)=>a+b,0) || 1;
+        dbDist.innerHTML = counts.map((c,i)=>{
+          const pct = Math.round((c/total)*100);
+          return `<div class=\"row\" style=\"align-items:center;\"><div style=\"width:28px;\">${i}</div><div style=\"flex:1;background:#e2e8f0;border-radius:6px;overflow:hidden;\"><div style=\"width:${pct}%;background:#2563eb;color:white;font-size:12px;padding:2px 6px;\">${c}</div></div><div style=\"width:40px;text-align:right;font-size:12px;color:#64748b\">${pct}%</div></div>`;
+        }).join('');
+      }
+      if (!lastGaps || !lastGaps.items) {
+        dbGaps.innerHTML = '<div class="meta">No gaps yet. Run gap analysis.</div>';
+      } else {
+        const top = (lastGaps.items||[]).slice(0,5);
+        dbGaps.innerHTML = top.map(it => `<div class=\"row\"><div style=\"flex:1\">${escapeHtml(it.question||'')}</div><span class=\"pill\">target fff</span></div><div class=\"meta\">${escapeHtml(it.suggestion||'')}</div>`).join('');
+      }
+    }
+
     goEl.addEventListener('click', search);
     synthEl.addEventListener('click', synthesize);
     promptEl.addEventListener('click', promptBuild);
     genEl.addEventListener('click', generate);
     qEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
+
+    // Pre-seed one scoring item to reduce clicks
+    addScoreItem('Do you implement appropriate technical and organizational measures (Article 32)?', '');
   </script>
 </body>
 </html>

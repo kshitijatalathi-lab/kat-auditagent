@@ -14,23 +14,30 @@ import subprocess
 from typing import List, Optional
 try:
     # When imported as part of the package 'smartaudit'
-    from smartaudit.retrieval import retrieve_top_k  # type: ignore
     from smartaudit.logging_utils import log_interaction  # type: ignore
-except Exception:  # fallback to local imports when running from repo root
-    from retrieval import retrieve_top_k  # type: ignore
+except Exception:
     from logging_utils import log_interaction  # type: ignore
+
+# retrieval is optional (legacy path); endpoints will check before usage
+try:
+    from smartaudit.retrieval import retrieve_top_k  # type: ignore
+except Exception:
+    try:
+        from retrieval import retrieve_top_k  # type: ignore
+    except Exception:
+        retrieve_top_k = None  # type: ignore
 import os
 from contextlib import nullcontext
 
 try:
-    from sentence_transformers import SentenceTransformer
-except Exception as e:
-    raise SystemExit("Please install sentence-transformers: pip install sentence-transformers") from e
+    from sentence_transformers import SentenceTransformer  # type: ignore
+except Exception:
+    SentenceTransformer = None  # type: ignore
 
 try:
     import faiss  # type: ignore
-except Exception as e:
-    raise SystemExit("Please install faiss-cpu: pip install faiss-cpu") from e
+except Exception:
+    faiss = None  # type: ignore
 
 ROOT = Path(__file__).resolve().parent
 INDEX_PATH = ROOT / "data" / "processed" / "index.faiss"
@@ -52,6 +59,14 @@ app.add_middleware(
 WEB_DIR = ROOT / "web"
 if WEB_DIR.exists():
     app.mount("/ui", StaticFiles(directory=str(WEB_DIR), html=True), name="ui")
+
+# Include ADK modular router (exposes /adk endpoints)
+try:
+    from adk.http.router import router as adk_router  # type: ignore
+    app.include_router(adk_router)
+except Exception:
+    # Router optional; continue without ADK if import fails
+    pass
 
 # --- Optional Observability (Phoenix via OTLP, Langfuse) ---
 tracer = None
@@ -143,11 +158,15 @@ class GenerateResponse(BaseModel):
 
 @lru_cache(maxsize=1)
 def get_model() -> SentenceTransformer:
+    if SentenceTransformer is None:
+        raise RuntimeError("sentence-transformers (with a backend like torch) is required for this endpoint.")
     return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
 
 @lru_cache(maxsize=1)
 def get_index() -> faiss.Index:
+    if faiss is None:
+        raise RuntimeError("faiss-cpu is required for this endpoint. Install faiss-cpu.")
     if not INDEX_PATH.exists():
         raise RuntimeError("Index not found. Build it first: python smartaudit/build_index.py")
     return faiss.read_index(str(INDEX_PATH))
@@ -366,57 +385,6 @@ def _get_openai_client():
         return None, f"Failed to init OpenAI client: {e}"
 
 
-# --- Optional local LLM (Unsloth) inference ---
-@lru_cache(maxsize=1)
-def _load_local_llm():
-    """Lazily load a local fine-tuned model if available.
-
-    Controlled by env:
-      - USE_LOCAL_LLM=true to prefer local
-      - SMARTAUDIT_LOCAL_MODEL_DIR for path (default: smartaudit/models/smartaudit-gemma)
-    Returns (model, tokenizer) or (None, None) if unavailable.
-    """
-    model_dir = os.getenv(
-        "SMARTAUDIT_LOCAL_MODEL_DIR",
-        str((ROOT / "models" / "smartaudit-gemma")),
-    )
-    try:
-        from unsloth import FastLanguageModel  # type: ignore
-    except Exception:
-        return None, None
-    try:
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=model_dir,
-            max_seq_length=2048,
-            dtype=None,
-            load_in_4bit=False,
-        )
-        return model, tokenizer
-    except Exception:
-        return None, None
-
-
-def _maybe_local_generate(prompt: str) -> tuple[Optional[str], Optional[str]]:
-    """Try generating with local model. Returns (answer, error)."""
-    model, tokenizer = _load_local_llm()
-    if model is None or tokenizer is None:
-        return None, "Local model not available"
-    try:
-        inputs = tokenizer(prompt, return_tensors="pt")
-        try:
-            device = getattr(model, "device", None)
-            if device is not None:
-                inputs = {k: v.to(device) for k, v in inputs.items()}
-        except Exception:
-            pass
-        from torch import no_grad  # type: ignore
-        with no_grad():
-            outputs = model.generate(**inputs, max_new_tokens=400)
-        text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        # extract assistant segment if tags remain
-        return text, None
-    except Exception as e:
-        return None, str(e)
 
 
 @app.post("/generate", response_model=GenerateResponse)
@@ -467,34 +435,7 @@ def generate(req: GenerateRequest, response: Response, _: None = Depends(require
         except Exception:
             pass
 
-    # Decide provider: local or OpenAI
-    use_local = os.getenv("USE_LOCAL_LLM", "").lower() in {"1", "true", "yes"} or (req.model or "").lower() == "local"
-    if use_local:
-        answer, lerr = _maybe_local_generate(prompt.prompt)
-        if answer is not None:
-            if tracer:
-                from opentelemetry import trace as _ot  # type: ignore
-                _ot.get_current_span().set_attribute("generation.provider", "local_unsloth")
-                _ot.get_current_span().set_attribute("answer.length", len(answer))
-            # Log locally
-            try:
-                log_interaction(
-                    query=req.q,
-                    retrieved_chunks=hits,
-                    prompt=prompt.prompt,
-                    model_output=answer,
-                    meta={
-                        "provider": "local",
-                        "k": req.k,
-                        "pre_k": req.pre_k,
-                        "rerank": req.rerank,
-                    },
-                )
-            except Exception:
-                pass
-            _maybe_set_trace_headers(response, getattr(lf_trace, "id", None))
-            return GenerateResponse(ok=True, query=req.q, answer=answer, citations=prompt.sources)
-        # Fallback to OpenAI if local unavailable
+    # Remote provider only (no local model support)
     client, err = _get_openai_client()
     if client is None:
         _maybe_set_trace_headers(response, getattr(lf_trace, "id", None) if 'lf_trace' in locals() else None)

@@ -1,0 +1,12 @@
+framework: GDPR
+version: 1.0
+items:
+  - id: gdpr_1
+    category: Lawful Basis
+    question: Do you have a documented lawful basis for each personal data processing activity?
+  - id: gdpr_2
+    category: Data Subject Rights
+    question: Do you have processes for handling access, rectification, erasure, and portability requests?
+  - id: gdpr_3
+    category: Security
+    question: Do you implement appropriate technical and organizational measures (Article 32)?

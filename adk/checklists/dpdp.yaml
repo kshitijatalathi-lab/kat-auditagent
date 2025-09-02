@@ -1,0 +1,12 @@
+framework: DPDP
+version: 1.0
+items:
+  - id: dpdp_1
+    category: Consent
+    question: Do you obtain and record explicit consent from data principals for processing?
+  - id: dpdp_2
+    category: Notice
+    question: Do you provide clear notice of purposes, retention, and grievance redressal?
+  - id: dpdp_3
+    category: Security
+    question: Do you implement reasonable security safeguards appropriate to risk?

@@ -9,14 +9,14 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 
 try:
-    from sentence_transformers import SentenceTransformer
-except Exception as e:
-    raise SystemExit("Please install sentence-transformers: pip install sentence-transformers") from e
+    from sentence_transformers import SentenceTransformer  # type: ignore
+except Exception:
+    SentenceTransformer = None  # type: ignore
 
 try:
     import faiss  # type: ignore
-except Exception as e:
-    raise SystemExit("Please install faiss-cpu: pip install faiss-cpu") from e
+except Exception:
+    faiss = None  # type: ignore
 
 ROOT = Path(__file__).resolve().parent
 INDEX_PATH = ROOT / "data" / "processed" / "index.faiss"
@@ -45,14 +45,18 @@ def _load_chunks() -> List[Dict[str, Any]]:
 
 
 @lru_cache(maxsize=1)
-def _load_index() -> faiss.Index:
+def _load_index():
+    if faiss is None:
+        raise RuntimeError("faiss-cpu is required for retrieval. Install faiss-cpu.")
     if not INDEX_PATH.exists():
         raise RuntimeError(f"Missing FAISS index at {INDEX_PATH}. Build it first: python smartaudit/build_index.py")
     return faiss.read_index(str(INDEX_PATH))
 
 
 @lru_cache(maxsize=1)
-def _load_model() -> SentenceTransformer:
+def _load_model():
+    if SentenceTransformer is None:
+        raise RuntimeError("sentence-transformers (with a backend like torch) is required for retrieval.")
     return SentenceTransformer(MODEL_NAME)
 
 
@@ -60,10 +64,8 @@ def _load_model() -> SentenceTransformer:
 def _load_reranker():
     try:
         from sentence_transformers import CrossEncoder  # type: ignore
-    except Exception as e:
-        raise SystemExit(
-            "CrossEncoder not available. Install sentence-transformers (already required)"
-        ) from e
+    except Exception:
+        raise RuntimeError("CrossEncoder not available. Install sentence-transformers for reranking.")
     return CrossEncoder(RERANK_MODEL_NAME)
 
 

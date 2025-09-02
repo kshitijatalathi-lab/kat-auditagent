@@ -1,0 +1,12 @@
+framework: HIPAA
+version: 1.0
+items:
+  - id: hipaa_1
+    category: Privacy Rule
+    question: Do you restrict PHI access to the minimum necessary workforce members?
+  - id: hipaa_2
+    category: Security Rule
+    question: Do you perform periodic risk analysis and implement risk management measures?
+  - id: hipaa_3
+    category: Breach Notification
+    question: Do you have procedures to detect and notify breaches of unsecured PHI?

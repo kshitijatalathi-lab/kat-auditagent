@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -14,18 +14,31 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, FileUp, FileText, Wrench, Users } from "lucide-react";
+import { LayoutDashboard, FileUp, FileText, Users, ListChecks, Activity } from "lucide-react";
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   const mainNav = [
     { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { title: "Upload", href: "/upload", icon: FileUp },
-    { title: "Report", href: "/report", icon: FileText },
-    { title: "Tools", href: "/tools", icon: Wrench },
-    { title: "Assistant", href: "/assistant", icon: LayoutDashboard },
+    { title: "Document Upload", href: "/upload", icon: FileUp },
+    { title: "Audit Checklists", href: "/checklists", icon: ListChecks },
+    { title: "Active Sessions", href: "/audit/demo", icon: Activity },
+    { title: "Reports", href: "/report", icon: FileText },
   ];
+
+  function onReportClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    try {
+      const lr = typeof window !== 'undefined' ? localStorage.getItem('lastReportUrl') : null;
+      if (lr) {
+        e.preventDefault();
+        router.push(lr);
+      }
+    } catch {
+      // ignore localStorage access issues
+    }
+  }
 
   const adminNav = [
     { title: "Admin", href: "/admin", icon: Users },
@@ -48,7 +61,7 @@ export function AppSidebar() {
                     isActive={pathname === item.href}
                     tooltip={item.title}
                   >
-                    <Link href={item.href}>
+                    <Link href={item.href} onClick={item.title === 'Reports' ? onReportClick : undefined}>
                       <item.icon />
                       <span>{item.title}</span>
                     </Link>

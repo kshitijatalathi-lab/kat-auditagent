@@ -15,6 +15,7 @@ export default function AssistantPage() {
   const [temperature, setTemperature] = useState<number>(0.2);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionResult, setActionResult] = useState<any | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // hydrate from localStorage
   useEffect(() => {
@@ -51,23 +52,29 @@ export default function AssistantPage() {
     setMessages(prev => prev.map(m => (m.id === currentAssistantId.current ? { ...m, content: completion } : m)));
   }, [completion]);
 
-  const send = async () => {
-    const prompt = input.trim();
+  const send = async (promptOverride?: string) => {
+    const prompt = (promptOverride ?? input).trim();
     if (!prompt || isLoading) return;
     setInput('');
+    setErrorMsg(null);
     const userMsg: Msg = { id: crypto.randomUUID(), role: 'user', content: prompt };
     const asstMsg: Msg = { id: crypto.randomUUID(), role: 'assistant', content: '' };
     currentAssistantId.current = asstMsg.id;
     setMessages(prev => [...prev, userMsg, asstMsg]);
     setCompletion('');
     setLoading(true);
-    await complete(prompt, {
-      body: {
-        // Pass provider preference and temperature through adapter
-        prefer: provider === 'auto' ? undefined : provider,
-        temperature,
-      },
-    });
+    try {
+      await complete(prompt, {
+        body: {
+          // Pass provider preference and temperature through adapter
+          prefer: provider === 'auto' ? undefined : provider,
+          temperature,
+        },
+      });
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Request failed');
+      setLoading(false);
+    }
   };
 
   const stop = () => {
@@ -112,11 +119,29 @@ export default function AssistantPage() {
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-4">
-      <h1 className="text-2xl font-semibold">AI Assistant</h1>
+    <div className="p-0 md:p-6 max-w-4xl mx-auto">
+      <div className="px-4 md:px-0 py-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">AI Assistant</h1>
+        <div className="flex items-center gap-3 text-sm">
+          <div className="hidden md:flex items-center gap-2">
+            <span className="text-muted-foreground">Provider</span>
+            <select className="border rounded-md px-2 py-1 bg-background" value={provider} onChange={(e) => setProvider(e.target.value as any)}>
+              <option value="auto">Auto</option>
+              <option value="gemini">Gemini</option>
+              <option value="openai">OpenAI</option>
+              <option value="groq">Groq</option>
+            </select>
+          </div>
+          <div className="hidden md:flex items-center gap-2">
+            <span className="text-muted-foreground">Temp {temperature.toFixed(2)}</span>
+            <input className="w-28" type="range" min={0} max={1} step={0.05} value={temperature} onChange={(e) => setTemperature(parseFloat(e.target.value))} />
+          </div>
+          <button onClick={clear} className="px-3 py-1.5 rounded-md border">Clear</button>
+        </div>
+      </div>
 
       {/* Quick Actions bar (rule-clarity-inspired) */}
-      <div className="rounded-lg border p-3 bg-card">
+      <div className="mx-4 md:mx-0 rounded-lg border p-3 bg-card">
         <div className="flex flex-wrap gap-2">
           <button onClick={() => runAgentTool('index_documents')} disabled={actionLoading!==null} className="px-3 py-2 rounded-md border">{actionLoading==='index_documents'?'Indexing…':'Index Documents'}</button>
           <button onClick={() => runAgentTool('score_question')} disabled={actionLoading!==null} className="px-3 py-2 rounded-md border">{actionLoading==='score_question'?'Scoring…':'Quick Score'}</button>
@@ -134,61 +159,59 @@ export default function AssistantPage() {
         )}
       </div>
 
-      <div className="rounded-lg border p-3 bg-card grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-        <div>
-          <label className="text-sm text-muted-foreground">Provider</label>
-          <select className="mt-1 w-full border rounded-md px-2 py-1 bg-background" value={provider} onChange={(e) => setProvider(e.target.value as any)}>
-            <option value="auto">Auto</option>
-            <option value="gemini">Gemini</option>
-            <option value="openai">OpenAI</option>
-            <option value="groq">Groq</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-sm text-muted-foreground">Temperature ({temperature.toFixed(2)})</label>
-          <input className="mt-1 w-full" type="range" min={0} max={1} step={0.05} value={temperature} onChange={(e) => setTemperature(parseFloat(e.target.value))} />
-        </div>
-        <div className="flex gap-2 justify-end">
-          <button onClick={clear} className="px-3 py-2 rounded-md border">Clear</button>
+      <div className="mx-4 md:mx-0 rounded-lg border p-3 bg-card flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">Interactive chat</div>
+        <div className="flex gap-2">
           <button onClick={stop} disabled={!loading} className="px-3 py-2 rounded-md border">Stop</button>
+          <button onClick={() => {
+            const lastUser = [...messages].reverse().find(m => m.role==='user');
+            if (lastUser) send(lastUser.content);
+          }} disabled={loading || isLoading || messages.filter(m=>m.role==='user').length===0} className="px-3 py-2 rounded-md border">Regenerate</button>
         </div>
       </div>
 
-      <div className="border rounded-lg p-4 bg-card min-h-[300px]">
-        <div className="space-y-3">
+      <div className="mx-4 md:mx-0 border rounded-lg p-4 bg-card min-h-[300px] max-h-[55vh] overflow-auto">
+        <div className="space-y-4">
           {messages.length === 0 && (
             <div className="text-sm text-muted-foreground">Ask a question to get started…</div>
           )}
           {messages.map((m) => (
-            <div key={m.id} className={m.role === 'user' ? 'text-foreground' : 'text-muted-foreground'}>
-              <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">{m.role}</div>
-              <div className="whitespace-pre-wrap leading-relaxed">{m.content}</div>
+            <div key={m.id} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+              <div className={`max-w-[85%] rounded-lg px-3 py-2 ${m.role==='user' ? 'bg-primary text-primary-foreground' : 'bg-background border text-foreground'}`}>
+                <div className="text-[10px] uppercase tracking-wide opacity-60 mb-1">{m.role}</div>
+                <div className="whitespace-pre-wrap leading-relaxed">{m.content}</div>
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          className="flex-1 border rounded-md px-3 py-2 bg-background"
-          placeholder="Type your message and press Enter"
-          disabled={loading || isLoading}
-        />
-        <button onClick={() => {
-          const last = [...messages].reverse().find(m => m.role === 'assistant');
-          if (last) navigator.clipboard.writeText(last.content || '');
-        }} className="px-3 py-2 rounded-md border">Copy Reply</button>
-        <button onClick={send} disabled={loading || isLoading || !input.trim()} className="px-4 py-2 rounded-md bg-primary text-primary-foreground">
-          {loading || isLoading ? 'Sending…' : 'Send'}
-        </button>
+      <div className="sticky bottom-0 left-0 right-0 bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t mt-4">
+        <div className="mx-4 md:mx-0 py-3 flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            className="flex-1 border rounded-md px-3 py-2 bg-card"
+            placeholder="Type your message and press Enter"
+            disabled={loading || isLoading}
+          />
+          <button onClick={() => {
+            const last = [...messages].reverse().find(m => m.role === 'assistant');
+            if (last) navigator.clipboard.writeText(last.content || '');
+          }} className="px-3 py-2 rounded-md border">Copy Reply</button>
+          <button onClick={() => send()} disabled={loading || isLoading || !input.trim()} className="px-4 py-2 rounded-md bg-primary text-primary-foreground">
+            {loading || isLoading ? 'Sending…' : 'Send'}
+          </button>
+        </div>
+        {errorMsg && (
+          <div className="mx-4 md:mx-0 pb-3 text-xs text-red-500">{errorMsg}</div>
+        )}
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Tip: We can later swap this custom UI with <code>@ai-sdk/ui</code> components once installed.
-      </p>
+      <div className="mx-4 md:mx-0 py-3">
+        <p className="text-xs text-muted-foreground">Tip: Press Enter to send, Shift+Enter for newline.</p>
+      </div>
     </div>
   );
 }

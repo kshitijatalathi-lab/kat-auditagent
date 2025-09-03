@@ -52,25 +52,23 @@ class Orchestrator:
         bundle = self.prompt_builder.build(checklist_question, user_answer, clauses)
         # Score via LLM (expects a string prompt)
         result = await self.scorer.score(bundle.prompt)
-        # Session log
-        self.sessions.log(
-            session_id=session_id,
-            org_id=org_id,
-            user_id=user_id,
-            event_type="score",
-            payload={
-                "framework": framework,
-                "question": checklist_question,
-                "answer": user_answer,
-                "clauses": bundle.clauses,
-                "llm": {
-                    "provider": result.provider,
-                    "model": result.model,
-                },
-                "score": result.score,
-                "rationale": result.rationale,
-            },
-        )
+        # Session log (best-effort)
+        try:
+            evt = self.sessions.make_event(
+                org_id=org_id,
+                user_id=user_id,
+                session_id=session_id,
+                question=checklist_question,
+                user_answer=user_answer,
+                retrieved_clauses=bundle.clauses,
+                llm_provider=result.provider,
+                llm_model=result.model,
+                score=result.score,
+                rationale=result.rationale,
+            )
+            self.sessions.log(evt)
+        except Exception:
+            pass
         return {
             "score": result.score,
             "rationale": result.rationale,
@@ -94,14 +92,24 @@ class Orchestrator:
             items=items,
             upload_to_gcs=upload_to_gcs,
         )
-        # Session log
-        self.sessions.log(
-            session_id=session_id,
-            org_id=org_id,
-            user_id="system",
-            event_type="report",
-            payload=out,
-        )
+        # Session log (non-critical)
+        try:
+            # We log a synthetic score-style event summarizing report generation
+            evt = self.sessions.make_event(
+                org_id=org_id,
+                user_id="system",
+                session_id=session_id,
+                question="report_generated",
+                user_answer="",
+                retrieved_clauses=[],
+                llm_provider="",
+                llm_model="",
+                score=0,
+                rationale="report",
+            )
+            self.sessions.log(evt)
+        except Exception:
+            pass
         return out
 
     # ---------- Checklist generation from uploaded docs ----------

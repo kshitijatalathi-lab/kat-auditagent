@@ -4,7 +4,7 @@ import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import '@/lib/auth';
 
-export function AuthGate({ children }: { children: ReactNode }) {
+export function AuthGate({ children, allowAnonymous = false }: { children: ReactNode; allowAnonymous?: boolean }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
@@ -17,14 +17,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (user === null) {
+    if (user === null && !allowAnonymous) {
       router.replace('/login');
     }
-  }, [user, router]);
+  }, [user, router, allowAnonymous]);
 
   if (user === undefined) {
     return <div className="p-6 text-sm text-muted-foreground">Checking authentication…</div>;
   }
-  if (!user) return null;
+  if (!user && !allowAnonymous) return null;
   return <>{children}</>;
 }

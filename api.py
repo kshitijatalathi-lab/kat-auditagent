@@ -60,6 +60,11 @@ WEB_DIR = ROOT / "web"
 if WEB_DIR.exists():
     app.mount("/ui", StaticFiles(directory=str(WEB_DIR), html=True), name="ui")
 
+# Serve generated reports (PDF) for download
+REPORTS_DIR = ROOT / "reports"
+REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/reports", StaticFiles(directory=str(REPORTS_DIR)), name="reports")
+
 # Include ADK modular router (exposes /adk endpoints)
 try:
     from adk.http.router import router as adk_router  # type: ignore

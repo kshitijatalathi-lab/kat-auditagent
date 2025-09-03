@@ -11,11 +11,10 @@ def main() -> None:
     """Run the FastAPI application with Uvicorn."""
     uvicorn.run(
         "app.main:app",
-        host=settings.HOST,
-        port=settings.PORT,
+        host="0.0.0.0",
+        port=8000,
         reload=settings.DEBUG,
-        workers=settings.WORKERS,
-        log_level=settings.LOG_LEVEL.lower(),
+        log_level="info",
     )
 
 if __name__ == "__main__":

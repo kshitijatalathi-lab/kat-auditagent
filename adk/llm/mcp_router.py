@@ -14,9 +14,9 @@ except Exception:
     genai = None  # type: ignore
 
 try:
-    from openai import OpenAI  # type: ignore
+    from openai import AsyncOpenAI  # type: ignore
 except Exception:
-    OpenAI = None  # type: ignore
+    AsyncOpenAI = None  # type: ignore
 
 
 @dataclass
@@ -35,6 +35,10 @@ class LLMRouter:
     def __init__(self) -> None:
         self.prefer = settings.prefer
 
+    def _debug(self, msg: str) -> None:
+        if os.getenv("LLM_DEBUG"):
+            print(f"[LLMRouter] {msg}")
+
     async def _gemini(self, prompt: str) -> Optional[LLMResponse]:
         if genai is None:
             return None
@@ -52,15 +56,17 @@ class LLMRouter:
             return None
 
     async def _openai(self, prompt: str) -> Optional[LLMResponse]:
-        if OpenAI is None:
+        if AsyncOpenAI is None:
+            self._debug("OpenAI SDK not available")
             return None
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
+            self._debug("OPENAI_API_KEY missing")
             return None
         try:
-            client = OpenAI(api_key=api_key)
+            client = AsyncOpenAI(api_key=api_key)
             model_name = settings.openai_model
-            resp = await client.chat.completions.create_async(
+            resp = await client.chat.completions.create(
                 model=model_name,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
@@ -68,9 +74,18 @@ class LLMRouter:
                 ],
                 temperature=0.2,
             )
-            txt = resp.choices[0].message.content if resp and resp.choices else ""
+            txt = ""
+            if getattr(resp, "choices", None):
+                choice0 = resp.choices[0]
+                # OpenAI python returns objects; access defensively
+                msg = getattr(choice0, "message", None)
+                if msg:
+                    txt = getattr(msg, "content", "") or ""
+            if not txt:
+                self._debug("OpenAI returned empty content")
             return LLMResponse(text=txt or "", provider="openai", model=model_name)
-        except Exception:
+        except Exception as e:
+            self._debug(f"OpenAI error: {e}")
             return None
 
 
@@ -98,18 +113,30 @@ class LLMRouter:
                     },
                 )
                 if r.status_code != 200:
+                    self._debug(f"Groq HTTP {r.status_code}: {r.text[:200]}")
                     return None
                 data = r.json()
-                content = (
-                    (data.get("choices") or [{}])[0]
-                    .get("message", {})
-                    .get("content", "")
-                )
-                return LLMResponse(text=content or "", provider="groq", model=model_name)
-        except Exception:
+                content = ""
+                choices = data.get("choices") or []
+                if choices:
+                    ch0 = choices[0]
+                    # Groq OpenAI-compatible responses usually have message.content
+                    content = (
+                        (ch0.get("message") or {}).get("content")
+                        or ch0.get("text", "")
+                        or ""
+                    )
+                if not content:
+                    self._debug("Groq returned empty content")
+                return LLMResponse(text=(content or ""), provider="groq", model=model_name)
+        except Exception as e:
+            self._debug(f"Groq error: {e}")
             return None
 
     async def generate(self, prompt: str, prefer: Optional[str] = None, temperature: float = 0.2) -> Optional[LLMResponse]:
+        # Mock mode: avoid external tokens and return canned output
+        if os.getenv("LLM_MOCK", "0").lower() in {"1", "true", "yes"}:
+            return LLMResponse(text=f"MOCK: {prompt}", provider="mock", model="mock")
         # Dynamic order based on preference
         eff_prefer = (prefer or self.prefer or "auto").lower()
         order = ["gemini", "openai", "groq"]
@@ -133,6 +160,12 @@ class LLMRouter:
         Tries provider-native SSE streaming for OpenAI and Groq. Falls back to
         non-streaming generate() split into chunks if streaming isn't available.
         """
+        # Mock mode: stream a short canned response
+        if os.getenv("LLM_MOCK", "0").lower() in {"1", "true", "yes"}:
+            msg = f"MOCK: {prompt}"
+            for i in range(0, len(msg), chunk_size):
+                yield msg[i : i + chunk_size]
+            return
         # Build preference order
         eff_prefer = (prefer or self.prefer or "auto").lower()
         order = ["gemini", "openai", "groq"]
@@ -168,6 +201,7 @@ class LLMRouter:
                                 json=payload,
                             ) as r:
                                 if r.status_code == 200:
+                                    yielded_any = False
                                     async for line in r.aiter_lines():
                                         if not line:
                                             continue
@@ -177,12 +211,26 @@ class LLMRouter:
                                                 break
                                             try:
                                                 obj = json.loads(data)
-                                                delta = ((obj.get("choices") or [{}])[0].get("delta") or {}).get("content")
+                                                choice0 = (obj.get("choices") or [{}])[0]
+                                                delta = (choice0.get("delta") or {}).get("content")
                                                 if delta:
+                                                    yielded_any = True
                                                     yield delta
+                                                else:
+                                                    # Some providers may send full message content in stream chunks
+                                                    msg_content = (choice0.get("message") or {}).get("content")
+                                                    if msg_content:
+                                                        yielded_any = True
+                                                        yield msg_content
                                             except Exception:
                                                 # ignore malformed chunk
                                                 pass
+                                    if not yielded_any:
+                                        # Fallback: try non-streaming
+                                        res = await self.generate(prompt, prefer=prefer, temperature=temperature)
+                                        txt = (res.text if res else "") or ""
+                                        if txt:
+                                            yield txt
                                     return
                     except Exception:
                         # Fall through to next provider
@@ -213,6 +261,7 @@ class LLMRouter:
                                 json=payload,
                             ) as r:
                                 if r.status_code == 200:
+                                    yielded_any = False
                                     async for line in r.aiter_lines():
                                         if not line:
                                             continue
@@ -222,11 +271,24 @@ class LLMRouter:
                                                 break
                                             try:
                                                 obj = json.loads(data)
-                                                delta = ((obj.get("choices") or [{}])[0].get("delta") or {}).get("content")
+                                                choice0 = (obj.get("choices") or [{}])[0]
+                                                delta = (choice0.get("delta") or {}).get("content")
                                                 if delta:
+                                                    yielded_any = True
                                                     yield delta
+                                                else:
+                                                    msg_content = (choice0.get("message") or {}).get("content") or obj.get("text")
+                                                    if msg_content:
+                                                        yielded_any = True
+                                                        yield msg_content
                                             except Exception:
                                                 pass
+                                    if not yielded_any:
+                                        # Fallback to non-streaming single shot
+                                        res = await self.generate(prompt, prefer=prefer, temperature=temperature)
+                                        txt = (res.text if res else "") or ""
+                                        if txt:
+                                            yield txt
                                     return
                     except Exception:
                         pass

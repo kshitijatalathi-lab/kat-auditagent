@@ -2,6 +2,32 @@
 
 This folder contains a minimal pipeline to extract, preprocess, index, and search regulatory texts.
 
+## Quick mock-mode API smoke test (no tokens)
+
+We provide a token-free mock mode for the FastAPI backend and Jest-based frontend API smoke tests.
+
+1) Start backend in mock mode (returns deterministic LLM output):
+
+```bash
+export LLM_MOCK=1
+uvicorn api:app --host 127.0.0.1 --port 8000
+```
+
+2) In another terminal, run frontend API smoke tests against the backend:
+
+```bash
+cd audit-assistant/frontend/nextjs
+export NEXT_PUBLIC_API_BASE=http://127.0.0.1:8000
+npm test -- src/__tests__/api-smoke.test.ts src/__tests__/api-nonstream-smoke.test.ts
+```
+
+Endpoints covered:
+- `POST /ai/chat` (SSE passthrough) → streams `MOCK: <prompt>` and `[DONE]`
+- `POST /adk/score/stream` (SSE) → clauses, rationale chunks, final summary
+- `POST /adk/checklist/generate`, `POST /adk/gaps`, `POST /adk/report`
+
+To test with real providers later, unset `LLM_MOCK` and set your provider keys (e.g. `GROQ_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`/`GEMINI_API_KEY`). See `.env.example`.
+
 ## Layout
 - `data/extracted/` — input .txt files (already extracted from PDFs)
 - `data/processed/` — chunked JSONL and FAISS index

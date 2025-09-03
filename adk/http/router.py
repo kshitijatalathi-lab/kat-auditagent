@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 import os
+from datetime import datetime
+from pathlib import Path
 from dataclasses import dataclass
+import textwrap
 from fastapi import APIRouter
 from fastapi import UploadFile, File
 from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 import json
+from pypdf import PdfReader, PdfWriter  # fallback for annotate output
 try:
     from openai import OpenAI
 except Exception:  # library optional until enabled
@@ -17,10 +21,13 @@ from adk.orchestrator import Orchestrator
 from adk.services import checklists as ck
 from adk.config import settings
 from adk.llm.mcp_router import LLMRouter
+from adk.services.report_writer import write_audit_pdf
+from adk.services.audit_pipeline import PolicyAuditPipeline
 
 router = APIRouter()
 _orch = Orchestrator()
 _llm = LLMRouter()
+_pipeline = PolicyAuditPipeline(orchestrator=_orch, llm=_llm)
 
 
 class ScoreRequest(BaseModel):
@@ -149,7 +156,11 @@ async def adk_checklists() -> ChecklistListResponse:
 @router.get("/adk/checklists/{framework}", response_model=ChecklistResponse)
 async def adk_checklist(framework: str) -> ChecklistResponse:
     data = ck.load_checklist(framework)
-    return ChecklistResponse(framework=data.get("framework", framework), version=data.get("version", "1.0"), items=data.get("items", []))
+    return ChecklistResponse(
+        framework=str(data.get("framework", framework)),
+        version=str(data.get("version", "1.0")),
+        items=data.get("items", []),
+    )
 
 
 @router.post("/adk/upload", response_model=UploadResponse)
@@ -241,7 +252,11 @@ class ChecklistGenResponse(BaseModel):
 @router.post("/adk/checklist/generate", response_model=ChecklistGenResponse)
 async def adk_checklist_generate(req: ChecklistGenRequest) -> ChecklistGenResponse:
     out = _orch.generate_checklist(framework=req.framework, files=req.files, top_n=req.top_n)
-    return ChecklistGenResponse(framework=out.get("framework", req.framework), version=out.get("version", "1.0"), items=out.get("items", []))
+    return ChecklistGenResponse(
+        framework=str(out.get("framework", req.framework)),
+        version=str(out.get("version", "1.0")),
+        items=out.get("items", []),
+    )
 
 
 # --------- New: Batch scoring ---------
@@ -308,8 +323,62 @@ class PolicyAnnotateResponse(BaseModel):
 
 @router.post("/adk/policy/annotate", response_model=PolicyAnnotateResponse)
 async def adk_policy_annotate(req: PolicyAnnotateRequest) -> PolicyAnnotateResponse:
-    out = _orch.annotate_policy(file=req.file, gaps=req.gaps, out_path=req.out_path)
-    return PolicyAnnotateResponse(annotated_path=str(out.get("annotated_path", "")))
+    # Normalize output path: if provided and relative, resolve under project root
+    out_path = req.out_path
+    try:
+        if out_path and not Path(out_path).is_absolute():
+            out_path = str((settings.root / out_path).resolve())
+            Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    out = _orch.annotate_policy(file=req.file, gaps=req.gaps, out_path=out_path)
+    annotated_path = str(out.get("annotated_path", ""))
+    # Fallback: if annotation did not create a file (rare), copy original PDF to target path
+    try:
+        if annotated_path and not Path(annotated_path).exists():
+            src = Path(req.file)
+            Path(annotated_path).parent.mkdir(parents=True, exist_ok=True)
+            reader = PdfReader(str(src))
+            writer = PdfWriter()
+            for page in reader.pages:
+                writer.add_page(page)
+            with open(annotated_path, "wb") as f:
+                writer.write(f)
+    except Exception:
+        pass
+    return PolicyAnnotateResponse(annotated_path=annotated_path)
+
+
+# --------- New: Policy audit (scaffold) ---------
+class PolicyAuditRequest(BaseModel):
+    file_path: str
+    org_id: str = "default_org"
+    policy_type: Optional[str] = None  # e.g., hr, posh
+    top_k: int = 8
+
+
+class PolicyAuditResponse(BaseModel):
+    policy_type: str
+    composite: float
+    checklist: List[Dict[str, Any]]
+    scores: List[Dict[str, Any]]
+    gaps: List[Dict[str, Any]]
+    report_path: Optional[str] = None
+    download_url: Optional[str] = None
+    annotated_path: Optional[str] = None
+    annotated_url: Optional[str] = None
+    corrected_draft: Optional[str] = None
+
+
+@router.post("/adk/policy/audit", response_model=PolicyAuditResponse)
+async def adk_policy_audit(req: PolicyAuditRequest) -> PolicyAuditResponse:
+    out = await _pipeline.run(
+        file_path=req.file_path,
+        org_id=req.org_id,
+        policy_type=req.policy_type,
+        top_k=req.top_k,
+    )
+    return PolicyAuditResponse(**out)
 
 
 # --------- Agent-like tools dispatch (generic) ---------
@@ -379,6 +448,12 @@ class OpenAIAgentRequest(BaseModel):
     messages: List[AgentChatMessage]
     tools: Optional[List[str]] = None
     execute: bool = False
+
+
+class OpenAIAgentResponse(BaseModel):
+    ok: bool
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
 
 
 @router.post("/ai/agent/openai", response_model=OpenAIAgentResponse)

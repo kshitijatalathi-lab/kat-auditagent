@@ -4,6 +4,21 @@ import { AuthGate } from '@/components/auth/AuthGate';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 
+// helper to download JSON client-side
+function downloadJson(filename: string, data: any) {
+  try {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch {}
+}
+
 export default function ToolsPage() {
   // Upload & Index state
   const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
@@ -25,11 +40,78 @@ export default function ToolsPage() {
   const [annotated, setAnnotated] = useState<string | null>(null);
   const [loadingAnnotate, setLoadingAnnotate] = useState(false);
 
+  // Quick Actions (rule-clarity style)
+  const [qaLoading, setQaLoading] = useState<string | null>(null);
+  const [qaResult, setQaResult] = useState<any | null>(null);
+  async function runQuick(tool: 'index_documents'|'score_question'|'compute_gaps'|'generate_report') {
+    if (qaLoading) return;
+    setQaLoading(tool);
+    setQaResult(null);
+    const defaults: Record<string, any> = {
+      index_documents: { files: uploadedPaths.length ? uploadedPaths : [
+        '/home/kshitija/Downloads/kat-audit-master/uploads/CELEX_32016R0679_EN_TXT.pdf',
+        '/home/kshitija/Downloads/kat-audit-master/uploads/comppoli.pdf',
+      ]},
+      score_question: { session_id: 'tools-ui', org_id: 'default_org', user_id: 'ui', framework: 'GDPR', checklist_question: 'Do you encrypt data at rest?', user_answer: 'Yes, AES-256', k: 5 },
+      compute_gaps: { scored_items: [{ question: 'Data retention policy documented', user_answer: 'Not documented', score: 1 }], min_score: 4 },
+      generate_report: { session_id: 'tools-ui', org_id: 'default_org', items: [
+        { question: 'Encrypt data at rest', user_answer: 'Yes, AES-256', score: 5, rationale: 'AES-256 at rest', llm_provider: 'groq', llm_model: 'llama3-70b-8192', clauses: [] },
+      ], upload_to_gcs: false },
+    };
+    try {
+      const res = await fetch('/api/ai/agent/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool, args: defaults[tool] || {} })
+      });
+      const data = await res.json();
+      setQaResult(data);
+      if (!data.ok) toast.error(data.error || 'Action failed'); else toast.success('Action completed');
+    } catch (e) {
+      setQaResult({ ok: false, error: 'request failed' });
+      toast.error('Request failed');
+    } finally {
+      setQaLoading(null);
+    }
+  }
+
   // Agent tools
   const [agentTool, setAgentTool] = useState('index_documents');
   const [agentArgs, setAgentArgs] = useState<string>(JSON.stringify({ files: ["/path/to/doc.pdf"] }, null, 2));
   const [agentResult, setAgentResult] = useState<any | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
+
+  // Policy Audit (end-to-end) state
+  const [auditFilePath, setAuditFilePath] = useState('');
+  const [auditPolicyType, setAuditPolicyType] = useState('');
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditResult, setAuditResult] = useState<any | null>(null);
+
+  async function runPolicyAudit() {
+    if (!auditFilePath) {
+      toast.error('Provide a policy file path (server path)');
+      return;
+    }
+    setAuditLoading(true);
+    setAuditResult(null);
+    try {
+      const body = {
+        file_path: auditFilePath,
+        top_k: 8,
+        ...(auditPolicyType ? { policy_type: auditPolicyType } : {}),
+      };
+      const res = await apiFetch('/adk/policy/audit', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      setAuditResult(res);
+      toast.success('Audit complete');
+    } catch (e: any) {
+      toast.error(e?.message || 'Audit failed');
+    } finally {
+      setAuditLoading(false);
+    }
+  }
 
   // Batch score (streaming)
   const [batchFramework, setBatchFramework] = useState('GDPR');
@@ -305,6 +387,80 @@ export default function ToolsPage() {
           <a className="underline" href="/dashboard">Back to Dashboard</a>
         </div>
 
+        {/* Quick Actions (Rule-Clarity style toolbar) */}
+        <section className="rounded-lg border p-4 bg-card space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium">Quick Actions</h2>
+            <div className="text-xs text-muted-foreground">One-click calls to backend agent tools</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => runQuick('index_documents')} disabled={qaLoading!==null} className="px-3 py-2 rounded-md border">
+              {qaLoading==='index_documents' ? 'Indexing…' : 'Index Documents'}
+            </button>
+            <button onClick={() => runQuick('score_question')} disabled={qaLoading!==null} className="px-3 py-2 rounded-md border">
+              {qaLoading==='score_question' ? 'Scoring…' : 'Quick Score'}
+            </button>
+            <button onClick={() => runQuick('compute_gaps')} disabled={qaLoading!==null} className="px-3 py-2 rounded-md border">
+              {qaLoading==='compute_gaps' ? 'Computing…' : 'Compute Gaps'}
+            </button>
+            <button onClick={() => runQuick('generate_report')} disabled={qaLoading!==null} className="px-3 py-2 rounded-md border">
+              {qaLoading==='generate_report' ? 'Generating…' : 'Generate Report'}
+            </button>
+          </div>
+          {qaResult && (
+            <div className="mt-3 rounded-md border p-3 bg-background text-sm max-h-64 overflow-auto">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs text-muted-foreground">Action result</div>
+                <button className="px-2 py-1 text-xs border rounded" onClick={() => navigator.clipboard.writeText(JSON.stringify(qaResult, null, 2))}>Copy</button>
+              </div>
+              <pre className="whitespace-pre-wrap">{JSON.stringify(qaResult, null, 2)}</pre>
+            </div>
+          )}
+        </section>
+
+        {/* Audit Policy (end-to-end) */}
+        <section className="rounded-lg border p-4 bg-card space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium">Audit Policy (end-to-end)</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm text-muted-foreground">Policy file path (server)</label>
+              <input className="mt-1 w-full border rounded-md px-2 py-1 bg-background" value={auditFilePath} onChange={(e)=>setAuditFilePath(e.target.value)} placeholder="uploads/hr_policy.pdf" />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground">Policy type (optional)</label>
+              <input className="mt-1 w-full border rounded-md px-2 py-1 bg-background" value={auditPolicyType} onChange={(e)=>setAuditPolicyType(e.target.value)} placeholder="hr, posh, ..." />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button disabled={auditLoading} onClick={runPolicyAudit} className="px-4 py-2 rounded-md border">{auditLoading ? 'Auditing…' : 'Run Audit'}</button>
+            {auditResult && (
+              <>
+                <button className="px-3 py-2 rounded-md border" onClick={()=>navigator.clipboard.writeText(JSON.stringify(auditResult, null, 2))}>Copy JSON</button>
+                <button className="px-3 py-2 rounded-md border" onClick={()=>downloadJson(`policy_audit_${auditResult.policy_type||'result'}.json`, auditResult)}>Download</button>
+                {(auditResult?.download_url || auditResult?.report_path) && (
+                  <button className="px-3 py-2 rounded-md border" onClick={()=>{
+                    const url = auditResult.download_url || auditResult.report_path;
+                    try { window.open(url, '_blank'); } catch {}
+                  }}>Open report</button>
+                )}
+              </>
+            )}
+          </div>
+          {auditResult && (
+            <div className="mt-3 rounded-md border p-3 bg-background text-sm">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <span className="px-2 py-0.5 rounded-full bg-indigo-600/15 text-indigo-700 dark:text-indigo-400 text-xs">{auditResult.policy_type || 'unknown'}</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 text-xs">Composite: {typeof auditResult.composite === 'number' ? auditResult.composite.toFixed(2) : auditResult.composite}</span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-600/15 text-slate-700 dark:text-slate-300 text-xs">Checklist: {auditResult.checklist?.length ?? 0}</span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-600/15 text-amber-700 dark:text-amber-400 text-xs">Gaps: {auditResult.gaps?.length ?? 0}</span>
+              </div>
+              <pre className="whitespace-pre-wrap max-h-72 overflow-auto">{JSON.stringify(auditResult, null, 2)}</pre>
+            </div>
+          )}
+        </section>
+
         {/* Providers Health */}
         <section className="rounded-lg border p-4 bg-card space-y-3">
           <div className="flex items-center justify-between">
@@ -314,25 +470,31 @@ export default function ToolsPage() {
             </button>
           </div>
           {providersHealth ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
               <div className="rounded-md border p-3 bg-background">
                 <div className="font-medium">Default</div>
-                <div className="text-muted-foreground">prefer: {providersHealth.prefer}</div>
+                <div className="text-muted-foreground">prefer: {providersHealth.prefer || 'auto'}</div>
               </div>
               <div className="rounded-md border p-3 bg-background">
-                <div className="font-medium">Groq</div>
-                <div>available: {String(providersHealth.groq_available)}</div>
-                <div className="text-muted-foreground">model: {providersHealth.groq_model}</div>
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">Groq</div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${providersHealth.groq_available ? 'bg-green-600/15 text-green-700 dark:text-green-400' : 'bg-red-600/15 text-red-700 dark:text-red-400'}`}>{providersHealth.groq_available ? 'Up' : 'Down'}</span>
+                </div>
+                <div className="text-muted-foreground">model: {providersHealth.groq_model || '-'}</div>
               </div>
               <div className="rounded-md border p-3 bg-background">
-                <div className="font-medium">OpenAI</div>
-                <div>available: {String(providersHealth.openai_available)}</div>
-                <div className="text-muted-foreground">model: {providersHealth.openai_model}</div>
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">OpenAI</div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${providersHealth.openai_available ? 'bg-green-600/15 text-green-700 dark:text-green-400' : 'bg-red-600/15 text-red-700 dark:text-red-400'}`}>{providersHealth.openai_available ? 'Up' : 'Down'}</span>
+                </div>
+                <div className="text-muted-foreground">model: {providersHealth.openai_model || '-'}</div>
               </div>
               <div className="rounded-md border p-3 bg-background">
-                <div className="font-medium">Gemini</div>
-                <div>available: {String(providersHealth.gemini_available)}</div>
-                <div className="text-muted-foreground">model: {providersHealth.gemini_model}</div>
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">Gemini</div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${providersHealth.gemini_available ? 'bg-green-600/15 text-green-700 dark:text-green-400' : 'bg-red-600/15 text-red-700 dark:text-red-400'}`}>{providersHealth.gemini_available ? 'Up' : 'Down'}</span>
+                </div>
+                <div className="text-muted-foreground">model: {providersHealth.gemini_model || '-'}</div>
               </div>
             </div>
           ) : (
@@ -476,7 +638,15 @@ export default function ToolsPage() {
             <label className="text-sm text-muted-foreground">File paths (one per line)</label>
             <textarea className="mt-2 w-full h-32 border rounded-md px-2 py-1 bg-background" value={filesText} onChange={(e) => setFilesText(e.target.value)} placeholder="/path/to/file1.pdf\n/path/to/file2.txt" />
           </div>
-          <button disabled={loadingGen} onClick={runChecklistGen} className="px-4 py-2 rounded-md border">{loadingGen ? 'Generating…' : 'Generate Checklist'}</button>
+          <div className="flex gap-2">
+            <button disabled={loadingGen} onClick={runChecklistGen} className="px-4 py-2 rounded-md border">{loadingGen ? 'Generating…' : 'Generate Checklist'}</button>
+            {genResult && (
+              <>
+                <button className="px-3 py-2 rounded-md border" onClick={()=>navigator.clipboard.writeText(JSON.stringify(genResult, null, 2))}>Copy JSON</button>
+                <button className="px-3 py-2 rounded-md border" onClick={()=>downloadJson(`checklist_${genResult.framework||'framework'}.json`, genResult)}>Download</button>
+              </>
+            )}
+          </div>
           {genResult && (
             <div className="mt-3 rounded-md border p-3 bg-background">
               <div className="text-sm text-muted-foreground mb-2">Items ({genResult.items?.length ?? 0})</div>
@@ -529,6 +699,18 @@ export default function ToolsPage() {
           <button disabled={agentLoading} onClick={runAgent} className="px-4 py-2 rounded-md border">{agentLoading ? 'Running…' : 'Run Tool'}</button>
           {agentResult && (
             <div className="mt-3 rounded-md border p-3 bg-background text-sm overflow-auto">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs text-muted-foreground">Result</div>
+                <div className="flex gap-2">
+                  <button className="px-2 py-1 text-xs border rounded" onClick={()=>navigator.clipboard.writeText(JSON.stringify(agentResult, null, 2))}>Copy</button>
+                  {(agentResult?.report_path || agentResult?.download_url) && (
+                    <button className="px-2 py-1 text-xs border rounded" onClick={()=>{
+                      const url = agentResult.download_url || agentResult.report_path;
+                      try { window.open(url, '_blank'); } catch {}
+                    }}>Open</button>
+                  )}
+                </div>
+              </div>
               <pre className="whitespace-pre-wrap">{JSON.stringify(agentResult, null, 2)}</pre>
             </div>
           )}

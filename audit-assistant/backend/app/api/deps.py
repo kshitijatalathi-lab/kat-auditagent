@@ -18,7 +18,7 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 def get_db() -> Generator:
-    ""
+    """
     Dependency that provides a database session.
     
     Yields:

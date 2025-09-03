@@ -12,7 +12,7 @@ def create_application() -> FastAPI:
         Audit Assistant API - A comprehensive tool for managing and conducting audits
         with AI-powered document analysis and compliance checking.
         """,
-        version=settings.VERSION,
+        version=getattr(settings, "VERSION", "0.1.0"),
         openapi_url=f"{settings.API_V1_STR}/openapi.json",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -31,7 +31,7 @@ def create_application() -> FastAPI:
     # Add trusted host middleware
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=settings.ALLOWED_HOSTS,
+        allowed_hosts=getattr(settings, "ALLOWED_HOSTS", ["*"]),
     )
 
     # Include API routes
@@ -43,7 +43,7 @@ def create_application() -> FastAPI:
         return {
             "status": "ok",
             "name": settings.PROJECT_NAME,
-            "version": settings.VERSION,
+            "version": getattr(settings, "VERSION", "0.1.0"),
             "environment": settings.ENVIRONMENT,
         }
 

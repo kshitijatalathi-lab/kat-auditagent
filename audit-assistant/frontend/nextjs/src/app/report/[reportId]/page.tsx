@@ -1,13 +1,14 @@
 'use client';
-import { useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 
-export default function ReportPage({ params }: { params: { reportId: string } }) {
+export default function ReportPage() {
+  const routeParams = useParams<{ reportId: string }>();
   const sp = useSearchParams();
   const pdf = sp.get('pdf_url') || '';
   const json = sp.get('json_url') || '';
   return (
     <div className="p-8 space-y-4">
-      <h1 className="text-2xl font-semibold">Report {params.reportId}</h1>
+      <h1 className="text-2xl font-semibold">Report {routeParams?.reportId}</h1>
       <p className="text-muted-foreground">Your report has been generated. Use the links below to download.</p>
       <div className="flex gap-3">
         {pdf ? (

@@ -90,3 +90,10 @@ class ReportGeneratorAgent:
         j_uri = self._upload_gcs(j)
         p_uri = self._upload_gcs(p)
         return {"json_path": str(j), "pdf_path": str(p), "json_gcs": j_uri, "pdf_gcs": p_uri}
+
+    # Public entry to align with Orchestrator.generate_report
+    def generate(self, *, session_id: str, org_id: str, items: List[Dict[str, Any]], upload_to_gcs: bool = True) -> Dict[str, str | None]:
+        report = Report(session_id=session_id, org_id=org_id, items=items)
+        # Note: upload_to_gcs flag is handled inside generate_and_store via _upload_gcs behavior
+        # If GCS is not configured, URIs will be None.
+        return self.generate_and_store(report)

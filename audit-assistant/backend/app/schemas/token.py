@@ -7,7 +7,7 @@ class Token(BaseModel):
     token_type: str = Field("bearer", description="Token type")
 
 class TokenData(BaseModel):
-    """Token payload model."""
+    """Token payload model for compatibility with existing code."""
     email: str | None = None
     scopes: list[str] = []
 
@@ -15,3 +15,8 @@ class TokenCreate(BaseModel):
     """Token creation model."""
     email: str = Field(..., description="User email")
     password: str = Field(..., description="User password")
+
+class TokenPayload(BaseModel):
+    """JWT payload used by auth dependencies."""
+    sub: int | str | None = None
+    scopes: list[str] = []

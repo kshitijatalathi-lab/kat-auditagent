@@ -14,7 +14,22 @@ export async function apiFetch<T = any>(path: string, init: RequestInit = {}): P
     ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
     ...init.headers,
   };
-  const url = new URL(path, API_BASE).toString();
+  // Build URL safely:
+  // - If path is absolute (http/https), use it as-is
+  // - Else if path starts with '/api/', keep it relative to use Next.js proxy
+  // - Else if API_BASE provided, resolve against it
+  // - Else fall back to using the relative path directly
+  let url: string;
+  if (/^https?:\/\//i.test(path)) {
+    url = path;
+  } else if (/^\/api\//.test(path)) {
+    // Keep Next.js API routes relative so they proxy to the backend
+    url = path;
+  } else if (API_BASE) {
+    url = new URL(path, API_BASE).toString();
+  } else {
+    url = path; // e.g., '/adk/checklists/GDPR' -> same origin
+  }
   const res = await fetch(url, { ...init, headers });
   if (!res.ok) {
     const text = await res.text();

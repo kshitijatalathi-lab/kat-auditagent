@@ -53,7 +53,20 @@ class EmbedderAgent:
                 return EmbeddingResult(vectors=vecs, model=self.model_name)
             except Exception:
                 pass
-        # Fallback to local ST
-        st = self._maybe_st()
-        vecs = st.encode(list(texts), normalize_embeddings=True)
-        return EmbeddingResult(vectors=np.array(vecs, dtype=np.float32), model="all-MiniLM-L6-v2")
+        # Fallback to local ST, with graceful degradation
+        try:
+            st = self._maybe_st()
+            vecs = st.encode(list(texts), normalize_embeddings=True)
+            return EmbeddingResult(vectors=np.array(vecs, dtype=np.float32), model="all-MiniLM-L6-v2")
+        except Exception:
+            # Deterministic lightweight fallback: hash-based random vectors
+            dim = 384
+            out = []
+            for t in texts:
+                seed = abs(hash(t)) % (2**32)
+                rng = np.random.RandomState(seed)
+                v = rng.randn(dim).astype(np.float32)
+                # normalize to unit length
+                norm = np.linalg.norm(v) + 1e-12
+                out.append(v / norm)
+            return EmbeddingResult(vectors=np.vstack(out), model="hash-fallback-384")

@@ -44,7 +44,10 @@ export function ReportExportButton({
       toast.success('Report generated', {
         description: 'Opening report page…',
       });
-      router.push(`/report/${encodeURIComponent(sessionId)}?${qp}`);
+      const url = `/report/${encodeURIComponent(sessionId)}?${qp}`;
+      // Persist last report URL for quick access from the sidebar
+      try { if (typeof window !== 'undefined') localStorage.setItem('lastReportUrl', url); } catch {}
+      router.push(url);
     } catch (e) {
       toast.error('Failed to generate report');
     } finally {

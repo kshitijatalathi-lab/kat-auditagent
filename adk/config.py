@@ -34,8 +34,8 @@ class Settings:
     vertex_index_id: str | None = os.getenv("VERTEX_ME_INDEX_ID")
     vertex_endpoint_id: str | None = os.getenv("VERTEX_ME_ENDPOINT_ID")
 
-    # LLM Providers
-    prefer: str = os.getenv("LLM_PROVIDER", "auto")  # auto|gemini|openai|groq
+    # LLM Providers (default to Groq; can override with LLM_PROVIDER)
+    prefer: str = os.getenv("LLM_PROVIDER", "groq")  # auto|gemini|openai|groq
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
     groq_model: str = os.getenv("GROQ_MODEL", "llama3-70b-8192")
@@ -43,6 +43,9 @@ class Settings:
     # Security / tenancy
     firebase_project_id: str | None = os.getenv("FIREBASE_PROJECT_ID")
     multitenant: bool = os.getenv("MULTITENANT", "true").lower() in {"1", "true", "yes"}
+
+    # Features
+    agents_enabled: bool = os.getenv("AGENTS_ENABLED", "true").lower() in {"1", "true", "yes"}
 
 
 settings = Settings()

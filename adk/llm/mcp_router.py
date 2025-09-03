@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
+import json
 import os
 import httpx
 
@@ -108,12 +109,13 @@ class LLMRouter:
         except Exception:
             return None
 
-    async def generate(self, prompt: str) -> Optional[LLMResponse]:
+    async def generate(self, prompt: str, prefer: Optional[str] = None, temperature: float = 0.2) -> Optional[LLMResponse]:
         # Dynamic order based on preference
+        eff_prefer = (prefer or self.prefer or "auto").lower()
         order = ["gemini", "openai", "groq"]
-        if self.prefer in order:
-            order.remove(self.prefer)
-            order.insert(0, self.prefer)
+        if eff_prefer in order:
+            order.remove(eff_prefer)
+            order.insert(0, eff_prefer)
         for p in order:
             if p == "gemini":
                 r = await self._gemini(prompt)
@@ -124,3 +126,117 @@ class LLMRouter:
             if r and r.text:
                 return r
         return None
+
+    async def generate_stream(self, prompt: str, chunk_size: int = 80, prefer: Optional[str] = None, temperature: float = 0.2):
+        """Async generator yielding text chunks.
+
+        Tries provider-native SSE streaming for OpenAI and Groq. Falls back to
+        non-streaming generate() split into chunks if streaming isn't available.
+        """
+        # Build preference order
+        eff_prefer = (prefer or self.prefer or "auto").lower()
+        order = ["gemini", "openai", "groq"]
+        if eff_prefer in order:
+            order.remove(eff_prefer)
+            order.insert(0, eff_prefer)
+
+        # 1) Try provider-native streaming where possible
+        for p in order:
+            if p == "openai":
+                api_key = os.getenv("OPENAI_API_KEY")
+                if api_key:
+                    url = "https://api.openai.com/v1/chat/completions"
+                    model_name = settings.openai_model
+                    try:
+                        async with httpx.AsyncClient(timeout=120) as client:
+                            payload = {
+                                "model": model_name,
+                                "messages": [
+                                    {"role": "system", "content": "You are a helpful assistant."},
+                                    {"role": "user", "content": prompt},
+                                ],
+                                "temperature": float(temperature),
+                                "stream": True,
+                            }
+                            async with client.stream(
+                                "POST",
+                                url,
+                                headers={
+                                    "Authorization": f"Bearer {api_key}",
+                                    "Content-Type": "application/json",
+                                },
+                                json=payload,
+                            ) as r:
+                                if r.status_code == 200:
+                                    async for line in r.aiter_lines():
+                                        if not line:
+                                            continue
+                                        if line.startswith("data: "):
+                                            data = line[len("data: "):].strip()
+                                            if data == "[DONE]":
+                                                break
+                                            try:
+                                                obj = json.loads(data)
+                                                delta = ((obj.get("choices") or [{}])[0].get("delta") or {}).get("content")
+                                                if delta:
+                                                    yield delta
+                                            except Exception:
+                                                # ignore malformed chunk
+                                                pass
+                                    return
+                    except Exception:
+                        # Fall through to next provider
+                        pass
+            elif p == "groq":
+                api_key = os.getenv("GROQ_API_KEY")
+                if api_key:
+                    url = "https://api.groq.com/openai/v1/chat/completions"
+                    model_name = settings.groq_model
+                    try:
+                        async with httpx.AsyncClient(timeout=120) as client:
+                            payload = {
+                                "model": model_name,
+                                "messages": [
+                                    {"role": "system", "content": "You are a helpful assistant."},
+                                    {"role": "user", "content": prompt},
+                                ],
+                                "temperature": float(temperature),
+                                "stream": True,
+                            }
+                            async with client.stream(
+                                "POST",
+                                url,
+                                headers={
+                                    "Authorization": f"Bearer {api_key}",
+                                    "Content-Type": "application/json",
+                                },
+                                json=payload,
+                            ) as r:
+                                if r.status_code == 200:
+                                    async for line in r.aiter_lines():
+                                        if not line:
+                                            continue
+                                        if line.startswith("data: "):
+                                            data = line[len("data: "):].strip()
+                                            if data == "[DONE]":
+                                                break
+                                            try:
+                                                obj = json.loads(data)
+                                                delta = ((obj.get("choices") or [{}])[0].get("delta") or {}).get("content")
+                                                if delta:
+                                                    yield delta
+                                            except Exception:
+                                                pass
+                                    return
+                    except Exception:
+                        pass
+            else:
+                # Gemini: Python SDK async streaming support may not be available in this env.
+                # We keep explicit branch for clarity and fall through to fallback chunking below.
+                continue
+
+        # 2) Fallback to non-streaming and chunk output
+        res = await self.generate(prompt, prefer=prefer, temperature=temperature)
+        text = (res.text if res else "") or ""
+        for i in range(0, len(text), chunk_size):
+            yield text[i : i + chunk_size]

@@ -2,6 +2,9 @@
 
 A comprehensive audit assistant application featuring Firebase authentication, multi-agent AI workflows, and real-time compliance auditing. Built with Next.js frontend and FastAPI backend with an Agentic Developer Kit (ADK) for sophisticated audit/compliance workflows.
 
+## Loom demo video
+[Demo](https://www.loom.com/share/a69ebadedada491c8465c2ae016af7b0?sid=5bbddf7c-c477-458b-b8b1-00eb8619fed1)
+
 ## 🚀 Features
 
 - **🔐 Firebase Authentication**: Email/password and Google OAuth login

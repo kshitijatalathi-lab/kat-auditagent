@@ -4,40 +4,52 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-export default function LoginPage() {
+export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, loginWithGoogle } = useAuth();
+  const { signup, loginWithGoogle } = useAuth();
   const router = useRouter();
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!email || !password || !confirmPassword) {
       toast.error('Please fill in all fields');
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters');
       return;
     }
     
     setLoading(true);
     try {
-      await login(email, password);
-      toast.success('Logged in successfully');
+      await signup(email, password, displayName);
+      toast.success('Account created successfully');
       router.push('/dashboard');
     } catch (error: any) {
-      toast.error(error.message || 'Login failed');
+      toast.error(error.message || 'Signup failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleSignup = async () => {
     setLoading(true);
     try {
       await loginWithGoogle();
-      toast.success('Logged in successfully');
+      toast.success('Account created successfully');
       router.push('/dashboard');
     } catch (error: any) {
-      toast.error(error.message || 'Google login failed');
+      toast.error(error.message || 'Google signup failed');
     } finally {
       setLoading(false);
     }
@@ -46,9 +58,21 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-8">
       <div className="w-full max-w-md border rounded-lg p-6 bg-card">
-        <h1 className="text-2xl font-semibold mb-2">Sign in</h1>
-        <p className="text-sm text-muted-foreground mb-6">Use your organization account to continue.</p>
-        <form onSubmit={handleEmailLogin} className="space-y-4">
+        <h1 className="text-2xl font-semibold mb-2">Create Account</h1>
+        <p className="text-sm text-muted-foreground mb-6">Get started with your audit assistant account.</p>
+        
+        <form onSubmit={handleEmailSignup} className="space-y-4">
+          <div>
+            <label htmlFor="displayName" className="block text-sm font-medium mb-1">Full Name</label>
+            <input
+              id="displayName"
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter your full name"
+            />
+          </div>
           <div>
             <label htmlFor="email" className="block text-sm font-medium mb-1">Email</label>
             <input
@@ -73,12 +97,24 @@ export default function LoginPage() {
               required
             />
           </div>
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1">Confirm Password</label>
+            <input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Confirm your password"
+              required
+            />
+          </div>
           <button
             type="submit"
             disabled={loading}
             className="w-full px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Signing in...' : 'Sign in with Email'}
+            {loading ? 'Creating Account...' : 'Create Account'}
           </button>
         </form>
         
@@ -87,7 +123,7 @@ export default function LoginPage() {
         </div>
         
         <button
-          onClick={handleGoogleLogin}
+          onClick={handleGoogleSignup}
           disabled={loading}
           className="w-full mt-4 px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
@@ -97,14 +133,14 @@ export default function LoginPage() {
             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
           </svg>
-          {loading ? 'Signing in...' : 'Continue with Google'}
+          {loading ? 'Creating Account...' : 'Continue with Google'}
         </button>
         
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
-            Don't have an account?{' '}
-            <a href="/signup" className="text-blue-600 hover:text-blue-700 font-medium">
-              Sign up
+            Already have an account?{' '}
+            <a href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+              Sign in
             </a>
           </p>
         </div>

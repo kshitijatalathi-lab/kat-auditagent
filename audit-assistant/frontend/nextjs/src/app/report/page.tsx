@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { useAuth } from '@/contexts/AuthContext';
 
 type JobRecord = {
   job_id: string;
@@ -28,6 +30,7 @@ const fullUrl = (u?: string | null): string => {
 };
 
 export default function ReportsListPage() {
+  const { user } = useAuth();
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -88,6 +91,7 @@ export default function ReportsListPage() {
   }
 
   return (
+    <ProtectedRoute>
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Recent Reports</h1>
@@ -167,6 +171,7 @@ export default function ReportsListPage() {
         <div className="text-sm text-muted-foreground">No reports yet. Run a new audit to get started.</div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }
 

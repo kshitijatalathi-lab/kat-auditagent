@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Timeline, type TimelineItem } from "@/components/Timeline";
 import { AgentGraph } from "@/components/AgentGraph";
 import { Chatbot } from "@/components/Chatbot";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Ensure URLs like "/reports/foo.pdf" are converted to absolute URLs on the backend origin
 const fullUrl = (u?: string | null): string => {
@@ -26,12 +28,20 @@ const fullUrl = (u?: string | null): string => {
 // Final event contains links for report and annotated files
 
 export default function AuditWizardPage() {
+  const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [uploaded, setUploaded] = useState<{ path: string; filename: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [orgId, setOrgId] = useState<string>("default");
+
+  // Update orgId when user changes
+  useEffect(() => {
+    if (user?.uid) {
+      setOrgId(user.uid);
+    }
+  }, [user]);
   const [policyType, setPolicyType] = useState<string>("Auto");
   const [k, setK] = useState<number>(8);
   const [prefer, setPrefer] = useState<string>("Auto");
@@ -61,11 +71,28 @@ export default function AuditWizardPage() {
       try {
         const r = await fetch("/api/ai/agents/graph");
         if (r.ok) {
-          const j = await r.json();
-          setGraph(j);
-          const ns: Record<string, any> = {};
-          (j.nodes || []).forEach((n: any) => (ns[n.id] = "idle"));
-          setNodeStatuses(ns);
+          const agentData = await r.json();
+          // Convert agent registry to graph format
+          if (agentData.agents) {
+            const nodes = agentData.agents.map((agent: any) => ({
+              id: agent.id,
+              label: agent.name || agent.id
+            }));
+            // Create simple sequential edges for workflow
+            const edges = [];
+            for (let i = 0; i < nodes.length - 1; i++) {
+              edges.push({
+                from: nodes[i].id,
+                to: nodes[i + 1].id,
+                label: "→"
+              });
+            }
+            const graphData = { nodes, edges };
+            setGraph(graphData);
+            const ns: Record<string, any> = {};
+            nodes.forEach((n: any) => (ns[n.id] = "idle"));
+            setNodeStatuses(ns);
+          }
         }
       } catch {}
     };
@@ -92,23 +119,6 @@ export default function AuditWizardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load MCP tools availability (best-effort)
-  useEffect(() => {
-    let aborted = false;
-    async function loadTools() {
-      try {
-        const r = await fetch('/api/ai/tools/catalog');
-        if (!r.ok) return;
-        const j = await r.json();
-        if (aborted) return;
-        const items: any[] = Array.isArray(j) ? j : (Array.isArray(j?.tools) ? j.tools : []);
-        const names = items.map((t: any) => t?.name || t?.id).filter(Boolean);
-        setToolsReady({ count: names.length, names });
-      } catch {}
-    }
-    loadTools();
-    return () => { aborted = true; };
-  }, []);
 
   const onChoose: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     const f = e.target.files?.[0] || null;
@@ -461,6 +471,7 @@ export default function AuditWizardPage() {
   const canAudit = useMemo(() => !!uploaded?.path && !streaming, [uploaded, streaming]);
 
   return (
+    <ProtectedRoute>
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Chatbot - Fixed position */}
       <Chatbot 
@@ -813,6 +824,7 @@ export default function AuditWizardPage() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   );
 }
 

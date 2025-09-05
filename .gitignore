@@ -38,6 +38,8 @@ smartaudit/models/
 .huggingface/
 
 # Node / web build (if any)
-web/node_modules/
+**/node_modules/
 web/dist/
+audit-compliance-app/frontend/.next/
+audit-compliance-app/frontend/out/
 audit-assistant/frontend/nextjs/pnpm-lock.yaml

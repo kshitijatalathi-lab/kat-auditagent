@@ -6,6 +6,7 @@ export async function GET(_req: Request, context: any) {
   const jobId = context?.params?.job_id as string;
   const url = new URL(`/adk/policy/audit/job/${jobId}`, API_BASE).toString();
   const res = await fetch(url, { method: 'GET' });
-  const json = await res.json();
-  return Response.json(json, { status: res.status });
+  const headers = new Headers(res.headers);
+  headers.set('Content-Type', 'application/json');
+  return new Response(res.body, { status: res.status, headers });
 }

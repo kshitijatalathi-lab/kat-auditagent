@@ -1,79 +1,276 @@
-# SmartAudit Audit Assistant (Backend + ADK + Tests)
+# KAT Audit Assistant - AI-Powered Compliance Platform
 
-This repository contains a FastAPI backend with an Agentic Developer Kit (ADK) for audit/compliance workflows, plus a minimal Next.js-based API smoke test setup. You can run the backend entirely in token-free mock mode to validate the API surface, and optionally connect real providers later.
+A comprehensive audit assistant application featuring Firebase authentication, multi-agent AI workflows, and real-time compliance auditing. Built with Next.js frontend and FastAPI backend with an Agentic Developer Kit (ADK) for sophisticated audit/compliance workflows.
 
-## Quick mock-mode API smoke test (no tokens)
+## 🚀 Features
 
-We provide a token-free mock mode for the FastAPI backend and Jest-based frontend API smoke tests.
+- **🔐 Firebase Authentication**: Email/password and Google OAuth login
+- **🤖 AI Chatbot**: Compliance-focused assistant with streaming responses
+- **📊 Agent Workflow Visualization**: Real-time multi-agent audit pipeline
+- **📋 Audit Wizard**: Upload documents and get comprehensive compliance reports
+- **📈 Dashboard**: User-specific audit history and report management
+- **🔄 Real-time Progress**: Live audit execution with agent status tracking
+- **📄 Report Generation**: PDF reports with gap analysis and recommendations
 
-1) Start backend in mock mode (returns deterministic LLM output):
+## 🚀 Quick Start
 
+### 1. Backend Setup
 ```bash
+# Install Python dependencies
 python3 -m pip install -r requirements.txt
-export LLM_MOCK=1
-uvicorn api:app --host 127.0.0.1 --port 8000
+
+# Start backend (port 8011)
+python3 -m uvicorn api:app --host 0.0.0.0 --port 8011 --reload
 ```
 
-2) In another terminal, run frontend API smoke tests against the backend:
+### 2. Frontend Setup
+```bash
+# Navigate to frontend directory
+cd audit-assistant/frontend/nextjs
 
+# Install dependencies
+npm install
+
+# Set environment variables
+export NEXT_PUBLIC_API_BASE=http://127.0.0.1:8011
+
+# Start frontend (port 3000)
+npm run dev
+```
+
+### 3. Firebase Authentication Setup
+Create a `.env.local` file in the frontend directory:
+```bash
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_API_BASE=http://127.0.0.1:8011
+```
+
+### 4. Access the Application
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8011
+- **Login**: Click "Sign In" in the navigation
+- **Dashboard**: Access your audit history after login
+- **Wizard**: Upload documents for compliance auditing
+
+## 🔧 Configuration Options
+
+### LLM Providers
+Configure AI providers by setting environment variables:
+```bash
+# For real AI responses
+export OPENAI_API_KEY=your_openai_key
+export GROQ_API_KEY=your_groq_key
+export GOOGLE_API_KEY=your_google_key
+
+# For testing (mock responses)
+export LLM_MOCK=1
+```
+
+## 🏗️ Architecture
+
+### Multi-Agent Workflow
+The system uses a sophisticated multi-agent architecture for compliance auditing:
+
+```
+EmbedderAgent → RetrieverAgent → PromptBuilder → ScorerAgent
+                                                      ↓
+ClauseAnnotator ← PolicyAuditPipeline → ReportGenerator
+```
+
+**Agent Responsibilities:**
+- **EmbedderAgent**: Vectorizes documents for semantic search
+- **RetrieverAgent**: Finds relevant regulatory clauses
+- **PromptBuilder**: Crafts scoring prompts with context
+- **ScorerAgent**: Evaluates compliance using LLM
+- **ClauseAnnotator**: Annotates gaps in documents
+- **ReportGenerator**: Creates comprehensive audit reports
+- **PolicyAuditPipeline**: Orchestrates end-to-end workflow
+
+### Project Structure
+- `api.py` — FastAPI backend with ADK endpoints
+- `adk/` — Agentic Developer Kit (agents, services, HTTP router)
+- `audit-assistant/frontend/nextjs/` — Next.js frontend with authentication
+- `data/processed/` — Processed artifacts (chunks, indexes, sessions, reports)
+- `preprocess.py` — Document preprocessing and chunking
+- `tools/` — Utility scripts for data preparation
+
+## 🎯 User Journey
+
+1. **Sign Up/Login**: Create account or login with email/password or Google OAuth
+2. **Upload Document**: Use the audit wizard to upload policy documents (PDF, DOCX, TXT)
+3. **Configure Audit**: Select framework (GDPR, HIPAA, DPDP) and analysis depth
+4. **Run Audit**: Watch real-time agent workflow execution with live progress
+5. **Review Results**: Download comprehensive PDF reports and annotated documents
+6. **Dashboard**: Track audit history and access previous reports
+
+## 🤖 AI Chatbot Features
+
+- **Compliance Expertise**: Specialized in GDPR, HIPAA, DPDP regulations
+- **Real-time Streaming**: Responsive chat with SSE streaming
+- **Context-Aware**: Understands audit workflows and compliance requirements
+- **Always Available**: Fixed position chatbot accessible from any page
+
+## 📊 Supported Frameworks
+
+- **GDPR**: General Data Protection Regulation
+- **HIPAA**: Health Insurance Portability and Accountability Act  
+- **DPDP**: Digital Personal Data Protection Act (India)
+- **Custom**: Extensible framework system
+
+## 🔌 API Endpoints
+
+### Authentication & User Management
+- `POST /auth/login` - User authentication
+- `POST /auth/signup` - User registration
+- `GET /auth/user` - Get user profile
+
+### AI & Chat
+- `POST /ai/chat` - Streaming chatbot responses (SSE)
+- `GET /ai/providers/health` - LLM provider status
+- `GET /ai/agents/graph` - Agent workflow visualization
+- `GET /ai/agents/registry` - Available agents list
+
+### Audit Workflow
+- `POST /adk/policy/audit/job` - Start audit job (SSE streaming)
+- `GET /adk/policy/audit/job/{job_id}` - Job status and progress
+- `POST /adk/score` - Document scoring
+- `POST /adk/gaps` - Gap analysis
+- `POST /adk/report` - Generate audit report
+
+### File Management
+- `POST /upload` - Document upload
+- `GET /reports/{report_id}` - Download reports
+- `GET /artifacts/{job_id}.zip` - Download audit artifacts
+
+## 🧪 Testing
+
+### Mock Mode Testing
+Run backend in mock mode for testing without API keys:
+```bash
+export LLM_MOCK=1
+python3 -m uvicorn api:app --host 0.0.0.0 --port 8011 --reload
+```
+
+### Frontend API Tests
 ```bash
 cd audit-assistant/frontend/nextjs
-npm ci
-export NEXT_PUBLIC_API_BASE=http://127.0.0.1:8000
-npm test -- src/__tests__/api-smoke.test.ts src/__tests__/api-nonstream-smoke.test.ts
+npm test -- src/__tests__/api-smoke.test.ts
 ```
 
-Endpoints covered:
-- `GET /ai/providers/health` → provider availability snapshot
-- `POST /ai/chat` (SSE passthrough) → streams `MOCK: <prompt>` and `[DONE]`
-- `POST /adk/score/stream` (SSE) → clauses, rationale chunks, final summary
-- `POST /adk/score`, `POST /adk/gaps`, `POST /adk/report`
+## 📦 Deployment
 
-To test with real providers later, unset `LLM_MOCK` and set your provider keys (e.g. `GROQ_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`/`GEMINI_API_KEY`). See `.env.example`.
+### Environment Variables
+Create `.env` files with required variables:
 
-## Layout
-- `api.py` — FastAPI service exposing ADK endpoints and optional retrieval endpoints
-- `adk/` — Agentic Developer Kit (agents, services, HTTP router)
-- `data/processed/` — processed artifacts (chunks, indexes, sessions, reports)
-- `preprocess.py` — cleans and chunks input texts; writes `regulations_chunks.jsonl`, `company_chunks.jsonl` (if present), and `all_chunks.jsonl`
-- `tools/download_india_policies.py` — helper to fetch DPDP/DPIA materials and convert to TXT
-- `audit-assistant/frontend/nextjs/` — Next.js project with Jest tests for API smoke checks
+**Backend (.env)**:
+```bash
+LLM_MOCK=0
+OPENAI_API_KEY=your_openai_key
+GROQ_API_KEY=your_groq_key
+GOOGLE_API_KEY=your_google_key
+```
 
-## Quick start
-1) Install Python dependencies:
-   - `python3 -m pip install -r requirements.txt`
+**Frontend (.env.local)**:
+```bash
+NEXT_PUBLIC_API_BASE=http://your-backend-url
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+```
 
-2) (Optional) Preprocess corpus into chunks (if you want retrieval artifacts):
-   - `python3 preprocess.py`
+## 📁 Data Management
 
-3) Start API server (mock mode):
-   - `export LLM_MOCK=1`
-   - `uvicorn api:app --host 127.0.0.1 --port 8000`
+### Adding Company Policies
+- Place `.txt` files in `data/company_policies/`
+- Rerun preprocessing: `python3 preprocess.py`
 
-4) Health check:
-   - `curl http://127.0.0.1:8000/health`
-
-## Add company policies
-- Place `.txt` files in `data/company_policies/`.
-- Rerun preprocessing to include them in the combined chunks (`python3 preprocess.py`).
-
-### Download India DPIA/DPDP materials (auto)
-
-We provide a helper script to download Indian DPIA/DPDP-related materials (DPDP summary, DPIA templates, checklists), convert PDFs/DOCX to TXT, and place them in the corpus.
-
-1) Run the downloader:
-
+### Download Regulatory Materials
+Download regulatory materials automatically:
 ```bash
 python3 tools/download_india_policies.py
-```
-
-2) Rebuild chunks:
-
-```bash
 python3 preprocess.py
 ```
 
 TXT outputs will be placed in `data/company_policies/india/txt/`.
+
+## 🛠️ Development
+
+### Running Tests
+```bash
+# Backend tests
+python3 -m pytest tests/ -v
+
+# Frontend tests  
+cd audit-assistant/frontend/nextjs
+npm test
+```
+
+### Key Test Files
+- `tests/test_adk_endpoints.py` - ADK API endpoints
+- `tests/test_agent_and_stream.py` - Streaming functionality
+- `tests/test_audit_pipeline_unit.py` - Audit pipeline units
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Backend not starting:**
+- Check Python dependencies: `pip install -r requirements.txt`
+- Verify port 8011 is available
+- Check environment variables in `.env`
+
+**Frontend authentication errors:**
+- Verify Firebase configuration in `.env.local`
+- Check `NEXT_PUBLIC_API_BASE` points to backend
+- Ensure Firebase project is properly configured
+
+**Chatbot not responding:**
+- Set `LLM_MOCK=1` for testing without API keys
+- Verify LLM provider API keys are valid
+- Check backend logs for streaming errors
+
+**Agent workflow not loading:**
+- Verify backend `/ai/agents/graph` endpoint is accessible
+- Check network connectivity between frontend and backend
+- Ensure agent registry is properly initialized
+
+## 📝 System Status
+
+### Current Features ✅
+- ✅ Firebase Authentication (Email/Password + Google OAuth)
+- ✅ AI Chatbot with streaming responses
+- ✅ Agent workflow visualization with real-time updates
+- ✅ Audit wizard with document upload
+- ✅ Dashboard with user-specific audit history
+- ✅ PDF report generation and download
+- ✅ Multi-framework support (GDPR, HIPAA, DPDP)
+- ✅ Mock mode for testing without API keys
+- ✅ Comprehensive API documentation
+
+### Known Limitations
+- Requires valid LLM API keys for full AI functionality
+- PyTorch version warning (non-blocking)
+- Limited to supported document formats (PDF, DOCX, TXT)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## ADK API overview (primary workflow)
 

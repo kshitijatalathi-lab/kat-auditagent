@@ -72,25 +72,11 @@ export default function AuditWizardPage() {
         const r = await fetch("/api/ai/agents/graph");
         if (r.ok) {
           const agentData = await r.json();
-          // Convert agent registry to graph format
-          if (agentData.agents) {
-            const nodes = agentData.agents.map((agent: any) => ({
-              id: agent.id,
-              label: agent.name || agent.id
-            }));
-            // Create simple sequential edges for workflow
-            const edges = [];
-            for (let i = 0; i < nodes.length - 1; i++) {
-              edges.push({
-                from: nodes[i].id,
-                to: nodes[i + 1].id,
-                label: "→"
-              });
-            }
-            const graphData = { nodes, edges };
-            setGraph(graphData);
+          // Use the actual graph structure from backend
+          if (agentData.nodes && agentData.edges) {
+            setGraph(agentData);
             const ns: Record<string, any> = {};
-            nodes.forEach((n: any) => (ns[n.id] = "idle"));
+            agentData.nodes.forEach((n: any) => (ns[n.id] = "idle"));
             setNodeStatuses(ns);
           }
         }

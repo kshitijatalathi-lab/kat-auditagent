@@ -166,6 +166,18 @@ class LLMRouter:
             for i in range(0, len(msg), chunk_size):
                 yield msg[i : i + chunk_size]
             return
+        
+        # Fallback mode: provide helpful response when no API keys available
+        if not any([
+            os.getenv("OPENAI_API_KEY"),
+            os.getenv("GROQ_API_KEY"), 
+            os.getenv("GOOGLE_API_KEY"),
+            os.getenv("GEMINI_API_KEY")
+        ]):
+            msg = "I'm a compliance and audit assistant. I can help you understand regulatory frameworks like GDPR, HIPAA, and DPDP. I can assist with policy analysis, gap identification, and compliance requirements. However, I need API keys configured to provide detailed responses. Please configure LLM provider credentials or enable mock mode for testing."
+            for i in range(0, len(msg), chunk_size):
+                yield msg[i : i + chunk_size]
+            return
         # Build preference order
         eff_prefer = (prefer or self.prefer or "auto").lower()
         order = ["gemini", "openai", "groq"]

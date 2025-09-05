@@ -1,0 +1,33 @@
+framework: HIPAA
+version: 1.0
+items:
+  - id: hipaa_1
+    category: Privacy Rule
+    question: Do you restrict PHI access to the minimum necessary workforce members?
+  - id: hipaa_2
+    category: Security Rule
+    question: Do you perform periodic risk analysis and implement risk management measures?
+  - id: hipaa_3
+    category: Breach Notification
+    question: Do you have procedures to detect and notify breaches of unsecured PHI?
+  - id: hipaa_4
+    category: Administrative Safeguards
+    question: Do you maintain and review role-based access policies for PHI, including authorization and workforce clearance procedures?
+  - id: hipaa_5
+    category: Technical Safeguards
+    question: Do you enforce unique user IDs, strong authentication, and automatic logoff for systems handling ePHI?
+  - id: hipaa_6
+    category: Technical Safeguards
+    question: Do you encrypt ePHI at rest and in transit using industry-accepted standards?
+  - id: hipaa_7
+    category: Technical Safeguards
+    question: Do you maintain audit logs for ePHI access and regularly review them for inappropriate or anomalous activity?
+  - id: hipaa_8
+    category: Physical Safeguards
+    question: Do you have facility access controls and device/media controls to prevent unauthorized physical access to ePHI?
+  - id: hipaa_9
+    category: Administrative Safeguards
+    question: Do you maintain Business Associate Agreements (BAAs) with all vendors that create, receive, maintain, or transmit PHI?
+  - id: hipaa_10
+    category: Administrative Safeguards
+    question: Do you have an incident response plan for security incidents involving ePHI, including containment, eradication, and post-incident review?

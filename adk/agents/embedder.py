@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Sequence
+from typing import List, Sequence, Dict, Any
 import os
 
 import numpy as np
@@ -17,6 +17,11 @@ try:
     from sentence_transformers import SentenceTransformer
 except Exception:
     SentenceTransformer = None  # type: ignore
+
+try:
+    from pydantic import BaseModel
+except Exception:
+    BaseModel = object  # type: ignore
 
 
 @dataclass
@@ -70,3 +75,26 @@ class EmbedderAgent:
                 norm = np.linalg.norm(v) + 1e-12
                 out.append(v / norm)
             return EmbeddingResult(vectors=np.vstack(out), model="hash-fallback-384")
+
+    # ---------- Contracts ----------
+    class EmbedRequest(BaseModel):  # type: ignore
+        texts: List[str]
+
+    class EmbedResponse(BaseModel):  # type: ignore
+        vectors: List[List[float]]
+        model: str
+
+    def embed_structured(self, req: "EmbedderAgent.EmbedRequest") -> "EmbedderAgent.EmbedResponse":  # type: ignore
+        res = self.embed(req.texts)
+        return self.EmbedResponse(vectors=res.vectors.tolist(), model=res.model)
+
+    # ---------- Health ----------
+    def health(self) -> Dict[str, Any]:
+        vertex_enabled = bool(self.project and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
+        st_available = SentenceTransformer is not None
+        return {
+            "vertex_enabled": vertex_enabled,
+            "vertex_model": self.model_name,
+            "sentence_transformers_available": st_available,
+            "fallback": not vertex_enabled and not st_available,
+        }

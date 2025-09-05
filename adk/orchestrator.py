@@ -45,19 +45,25 @@ class Orchestrator:
         checklist_question: str,
         user_answer: str,
         k: int = 5,
+        prefer: Optional[str] = None,
     ) -> Dict[str, Any]:
         # Retrieval
         clauses = self.retriever.search(checklist_question, k=k, framework=framework)
         # Prompt
         bundle = self.prompt_builder.build(checklist_question, user_answer, clauses)
-        # Score via LLM (expects a string prompt)
-        result = await self.scorer.score(bundle.prompt)
+        # Score via LLM (expects a string prompt); be backward-compatible with mocks
+        try:
+            result = await self.scorer.score(bundle.prompt, prefer=prefer)
+        except TypeError:
+            # Older FakeScorer in tests may not accept 'prefer'
+            result = await self.scorer.score(bundle.prompt)
         # Session log (best-effort)
         try:
             evt = self.sessions.make_event(
                 org_id=org_id,
                 user_id=user_id,
                 session_id=session_id,
+                framework=framework,
                 question=checklist_question,
                 user_answer=user_answer,
                 retrieved_clauses=bundle.clauses,
@@ -85,11 +91,13 @@ class Orchestrator:
         org_id: str,
         items: List[Dict[str, Any]],
         upload_to_gcs: bool = True,
+        options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         out = self.reporter.generate(
             session_id=session_id,
             org_id=org_id,
             items=items,
+            options=options or {},
             upload_to_gcs=upload_to_gcs,
         )
         # Session log (non-critical)
@@ -99,6 +107,7 @@ class Orchestrator:
                 org_id=org_id,
                 user_id="system",
                 session_id=session_id,
+                framework=None,
                 question="report_generated",
                 user_answer="",
                 retrieved_clauses=[],
@@ -126,6 +135,7 @@ class Orchestrator:
         framework: str,
         items: List[Dict[str, Any]],  # each has question, user_answer
         k: int = 5,
+        prefer: Optional[str] = None,
     ) -> Dict[str, Any]:
         results: List[Dict[str, Any]] = []
         total = 0.0
@@ -141,6 +151,7 @@ class Orchestrator:
                 checklist_question=q,
                 user_answer=a,
                 k=k,
+                prefer=prefer,
             )
             results.append({
                 "question": q,

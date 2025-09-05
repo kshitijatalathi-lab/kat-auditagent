@@ -1,8 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { getAuth, onAuthStateChanged, signOut, User } from 'firebase/auth';
-import '@/lib/auth';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { auth, isFirebaseConfigured } from '@/lib/auth';
 import { useOrg } from '@/lib/org';
 import { UserMenu } from './UserMenu';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -12,15 +12,21 @@ export function TopBar() {
   const { org, setOrg } = useOrg();
 
   useEffect(() => {
-    const auth = getAuth();
+    if (!isFirebaseConfigured) {
+      setUser(null);
+      return;
+    }
     const unsub = onAuthStateChanged(auth, (u) => setUser(u));
     return () => unsub();
   }, []);
 
   const handleSignOut = async () => {
-    const auth = getAuth();
-    await signOut(auth);
-    window.location.href = '/login';
+    if (isFirebaseConfigured) {
+      try { await signOut(auth); } catch {}
+      window.location.href = '/login';
+    } else {
+      window.location.href = '/login';
+    }
   };
 
   return (

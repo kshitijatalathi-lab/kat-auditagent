@@ -20,6 +20,7 @@ class SessionEvent:
     org_id: str
     user_id: str
     session_id: str
+    framework: Optional[str]
     question: str
     user_answer: str
     retrieved_clauses: List[Dict[str, Any]]
@@ -63,6 +64,7 @@ class SessionTrackerAgent:
         org_id: str,
         user_id: str,
         session_id: str,
+        framework: Optional[str],
         question: str,
         user_answer: str,
         retrieved_clauses: List[Dict[str, Any]],
@@ -75,6 +77,7 @@ class SessionTrackerAgent:
             org_id=org_id,
             user_id=user_id,
             session_id=session_id,
+            framework=framework,
             question=question,
             user_answer=user_answer,
             retrieved_clauses=retrieved_clauses,

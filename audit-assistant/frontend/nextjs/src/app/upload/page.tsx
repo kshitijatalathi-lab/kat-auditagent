@@ -79,13 +79,15 @@ export default function UploadIndexPage() {
       for (let i = 0; i < files.length; i++) {
         const fd = new FormData();
         fd.append('file', files[i]);
-        const resp = await apiFetch<UploadResp>('/adk/upload', { method: 'POST', body: fd });
+        const resp = await apiFetch<UploadResp>('/api/upload', { method: 'POST', body: fd });
         results.push(resp);
         toast.success(`Uploaded ${resp.filename}`);
       }
       setUploaded(prev => [...prev, ...results]);
-    } catch (e) {
-      toast.error('Upload failed');
+    } catch (e: any) {
+      const msg = typeof e?.message === 'string' && e.message.trim().length > 0 ? e.message : 'Upload failed';
+      console.error('Upload error:', e);
+      toast.error(msg);
     } finally {
       setUploading(false);
     }
@@ -96,10 +98,12 @@ export default function UploadIndexPage() {
     setIndexing(true);
     try {
       const body = { files: uploaded.map(u => u.path) };
-      const resp = await apiFetch<IndexResp>('/adk/index', { method: 'POST', body: JSON.stringify(body) });
+      const resp = await apiFetch<IndexResp>('/api/adk/index', { method: 'POST', body: JSON.stringify(body) });
       toast.success(`Indexed ${resp.count ?? 0} docs`);
-    } catch (e) {
-      toast.error('Indexing failed');
+    } catch (e: any) {
+      const msg = typeof e?.message === 'string' && e.message.trim().length > 0 ? e.message : 'Indexing failed';
+      console.error('Indexing error:', e);
+      toast.error(msg);
     } finally {
       setIndexing(false);
     }

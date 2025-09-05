@@ -14,7 +14,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, FileUp, FileText, Users, ListChecks, Activity } from "lucide-react";
+import { LayoutDashboard, FileUp, FileText, Users, ListChecks, Activity, Wand2 } from "lucide-react";
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -22,6 +22,7 @@ export function AppSidebar() {
 
   const mainNav = [
     { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { title: "Audit Wizard", href: "/wizard", icon: Wand2 },
     { title: "Document Upload", href: "/upload", icon: FileUp },
     { title: "Audit Checklists", href: "/checklists", icon: ListChecks },
     { title: "Active Sessions", href: "/audit/demo", icon: Activity },

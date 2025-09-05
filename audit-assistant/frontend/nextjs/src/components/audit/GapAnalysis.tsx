@@ -13,7 +13,7 @@ export type ScoredItem = {
   clauses?: any[];
 };
 
-export function GapAnalysis({ buildItems, className }: { buildItems: () => ScoredItem[]; className?: string }) {
+export function GapAnalysis({ buildItems, className, onResult }: { buildItems: () => ScoredItem[]; className?: string; onResult?: (res: { count: number; items: any[] }) => void }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ count: number; items: any[] } | null>(null);
 
@@ -26,6 +26,7 @@ export function GapAnalysis({ buildItems, className }: { buildItems: () => Score
         { method: 'POST', body: JSON.stringify({ scored_items: items, min_score: 4 }) }
       );
       setResult(res);
+      try { onResult?.(res); } catch {}
       toast.success(`Found ${res.count} gaps`);
     } catch (e) {
       toast.error('Failed to compute gaps');

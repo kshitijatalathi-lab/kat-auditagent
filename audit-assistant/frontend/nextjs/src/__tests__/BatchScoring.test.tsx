@@ -23,7 +23,7 @@ describe('BatchScoring', () => {
       />
     );
 
-    const btn = screen.getByRole('button', { name: /run batch scoring/i });
+    const btn = screen.getByRole('button', { name: /score all answered/i });
     fireEvent.click(btn);
 
     await waitFor(() => expect(screen.getByText(/Composite Score:/i)).toBeInTheDocument());
@@ -42,7 +42,7 @@ describe('BatchScoring', () => {
         buildItems={buildItems}
       />
     );
-    const btn = screen.getByRole('button', { name: /run batch scoring/i });
+    const btn = screen.getByRole('button', { name: /score all answered/i });
     fireEvent.click(btn);
     // Since it returns early, no results should appear
     await new Promise((r) => setTimeout(r, 50));

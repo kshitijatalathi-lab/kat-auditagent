@@ -2,8 +2,8 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { LogOut, LayoutDashboard, Shield, ChevronDown, Building2 } from 'lucide-react';
 import Link from 'next/link';
-import { getAuth, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import '@/lib/auth';
+import { signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { auth, isFirebaseConfigured } from '@/lib/auth';
 import { useEffect, useState } from 'react';
 import { useOrg } from '@/lib/org';
 
@@ -12,14 +12,18 @@ export function UserMenu() {
   const { org } = useOrg();
 
   useEffect(() => {
-    const auth = getAuth();
+    if (!isFirebaseConfigured) {
+      setUser(null);
+      return;
+    }
     const unsub = onAuthStateChanged(auth, (u) => setUser(u));
     return () => unsub();
   }, []);
 
   const handleSignOut = async () => {
-    const auth = getAuth();
-    await signOut(auth);
+    if (isFirebaseConfigured) {
+      try { await signOut(auth); } catch {}
+    }
     window.location.href = '/login';
   };
 

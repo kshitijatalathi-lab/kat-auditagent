@@ -23,6 +23,8 @@ reports/
 /data/processed/index.faiss
 /data/processed/*.json
 /data/processed/*.jsonl
+/data/processed/clauses_index.faiss
+/data/processed/session_states/
 /data/extracted/
 /data/company_policies/
 /data/fine_tune/
@@ -38,3 +40,4 @@ smartaudit/models/
 # Node / web build (if any)
 web/node_modules/
 web/dist/
+audit-assistant/frontend/nextjs/pnpm-lock.yaml

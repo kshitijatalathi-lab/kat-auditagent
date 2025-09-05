@@ -1,6 +1,50 @@
+"use client";
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { AuthGate } from '@/components/auth/AuthGate';
+import { useOrg } from '@/lib/org';
+import { apiFetch } from '@/lib/api';
+
+type SessionSummary = {
+  session_id: string;
+  org_id: string;
+  user_id?: string;
+  framework?: string;
+  last_event?: string;
+  last_question?: string;
+  last_score?: number;
+  updated_at: string;
+  progress_answered?: number;
+  progress_total?: number;
+  progress_percent?: number;
+};
 
 export default function Dashboard() {
+  const router = useRouter();
+  const startAudit = useCallback((framework: string) => {
+    const id = `sess-${Math.random().toString(36).slice(2, 8)}`;
+    router.push(`/audit/${id}?framework=${framework}`);
+  }, [router]);
+  const { org } = useOrg();
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await apiFetch<{ items: SessionSummary[] }>(`/api/adk/sessions?org_id=${encodeURIComponent(org)}`);
+        if (cancelled) return;
+        setSessions(Array.isArray((data as any).items) ? (data as any).items : []);
+      } catch {
+        setSessions([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [org]);
   return (
     <AuthGate>
     <div className="p-8 space-y-8">
@@ -9,7 +53,79 @@ export default function Dashboard() {
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="text-muted-foreground">Monitor your organization's compliance status and audit progress</p>
         </div>
-        <a className="px-4 py-2 rounded-md bg-blue-600 text-white" href="/upload">+ Start New Audit</a>
+        <a className="px-4 py-2 rounded-md bg-blue-600 text-white" href="/upload">Upload & Index Docs</a>
+      </div>
+
+      {/* Framework-specific quick start */}
+      <div className="border rounded-lg p-4 bg-card">
+        <div className="text-lg font-medium mb-3">Start an Audit</div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <button type="button" className="text-left rounded-lg border p-4 hover:bg-accent" onClick={() => startAudit('GDPR')}>
+            <div className="font-medium">GDPR</div>
+            <div className="text-sm text-muted-foreground">EU data protection compliance</div>
+          </button>
+          <button type="button" className="text-left rounded-lg border p-4 hover:bg-accent" onClick={() => startAudit('HIPAA')}>
+            <div className="font-medium">HIPAA</div>
+            <div className="text-sm text-muted-foreground">US healthcare data privacy</div>
+          </button>
+          <button type="button" className="text-left rounded-lg border p-4 hover:bg-accent" onClick={() => startAudit('DPDP')}>
+            <div className="font-medium">DPDP (India)</div>
+            <div className="text-sm text-muted-foreground">Digital Personal Data Protection</div>
+          </button>
+          <button type="button" className="text-left rounded-lg border p-4 hover:bg-accent" onClick={() => startAudit('OTHER')}>
+            <div className="font-medium">Other / Custom</div>
+            <div className="text-sm text-muted-foreground">Generic audit questions</div>
+          </button>
+          <button type="button" className="text-left rounded-lg border p-4 hover:bg-accent" onClick={() => startAudit('OTHER')}>
+            <div className="font-medium">POSH Policy</div>
+            <div className="text-sm text-muted-foreground">Start with OTHER, upload POSH policy, then Generate Checklist</div>
+          </button>
+        </div>
+      </div>
+
+      {/* Resume audits */}
+      <div className="border rounded-lg p-4 bg-card">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-lg font-medium">Resume Audits</div>
+          <div className="text-sm text-muted-foreground">Org: {org}</div>
+        </div>
+        {loading ? (
+          <div className="text-sm text-muted-foreground">Loading sessions…</div>
+        ) : sessions.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No sessions yet. Start a new audit above.</div>
+        ) : (
+          <div className="space-y-2">
+            {sessions.slice(0, 6).map((s) => {
+              const href = `/audit/${encodeURIComponent(s.session_id)}${s.framework ? `?framework=${encodeURIComponent(s.framework)}` : ''}`;
+              const pct = typeof s.progress_percent === 'number' ? s.progress_percent : undefined;
+              const label = typeof s.progress_answered === 'number' && typeof s.progress_total === 'number'
+                ? `${s.progress_answered}/${s.progress_total}`
+                : undefined;
+              return (
+                <a key={s.session_id} href={href} className="rounded-md border p-3 hover:bg-accent block">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">Session {s.session_id}</div>
+                      <div className="text-xs text-muted-foreground">{s.framework || 'Unknown framework'} • Updated {new Date(s.updated_at).toLocaleString()}</div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">Last: {s.last_question || s.last_event || '—'}</div>
+                  </div>
+                  {pct !== undefined && (
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Progress</span>
+                        <span>{label} ({pct.toFixed(0)}%)</span>
+                      </div>
+                      <div className="mt-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-600" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+                      </div>
+                    </div>
+                  )}
+                </a>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="grid md:grid-cols-4 gap-4">

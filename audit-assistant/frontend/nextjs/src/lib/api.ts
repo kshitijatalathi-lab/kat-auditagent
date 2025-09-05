@@ -1,13 +1,21 @@
-import { getAuth } from 'firebase/auth';
+import { auth, isFirebaseConfigured } from '@/lib/auth';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8011';
 
 export async function apiFetch<T = any>(path: string, init: RequestInit = {}): Promise<T> {
-  const auth = getAuth();
-  const token = await auth.currentUser?.getIdToken?.();
+  const orgId = typeof window !== 'undefined' ? window.localStorage.getItem('org_id') || undefined : undefined;
+  let token: string | undefined;
+  if (typeof window !== 'undefined' && isFirebaseConfigured) {
+    try {
+      token = await auth.currentUser?.getIdToken?.();
+    } catch {
+      // If Firebase isn't ready or user not logged in, proceed without token
+    }
+  }
   const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
   const baseHeaders: HeadersInit = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(orgId ? { 'X-Org-Id': orgId } : {}),
   };
   const headers: HeadersInit = {
     ...baseHeaders,

@@ -1,0 +1,9 @@
+{
+  "composite_score": 2.5,
+  "items_count": 2,
+  "gaps_count": 1,
+  "items": [
+    {"question": "GDPR lawful basis?", "user_answer": "Yes, we document basis.", "score": 3},
+    {"question": "Encrypt ePHI at rest?", "user_answer": "No, pending migration.", "score": 2}
+  ]
+}

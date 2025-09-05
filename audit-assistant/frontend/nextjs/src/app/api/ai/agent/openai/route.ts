@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 
 export const runtime = 'edge';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8011';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();

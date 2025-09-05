@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Dict, Any
 import os
 
 import numpy as np
@@ -76,6 +76,44 @@ class RetrieverAgent:
                 )
             )
         return out
+
+    # ---------- Contracts ----------
+    try:
+        from pydantic import BaseModel
+    except Exception:  # pragma: no cover - optional at runtime
+        BaseModel = object  # type: ignore
+
+    class RetrieveRequest(BaseModel):  # type: ignore
+        query_text: str
+        k: int = 5
+        framework: Optional[str] = None
+
+    class RetrievedItem(BaseModel):  # type: ignore
+        law: str
+        article: str
+        clause_id: str
+        title: str
+        clause_text: str
+        source_path: str
+        score: float
+
+    class RetrieveResponse(BaseModel):  # type: ignore
+        items: List["RetrieverAgent.RetrievedItem"]
+
+    def search_structured(self, req: "RetrieverAgent.RetrieveRequest") -> "RetrieverAgent.RetrieveResponse":  # type: ignore
+        items = self.search(req.query_text, k=req.k, framework=req.framework)
+        return self.RetrieveResponse(items=[self.RetrievedItem(**it) for it in items])
+
+    # ---------- Health ----------
+    def health(self) -> Dict[str, Any]:
+        return {
+            "faiss_available": faiss is not None,
+            "index_loaded": self.index is not None,
+            "meta_count": len(self.meta or []),
+            "use_matching_engine": bool(self.use_me),
+            "vertex_configured": bool(os.getenv("GCP_PROJECT")),
+            "embedder": self.embedder.health() if hasattr(self.embedder, "health") and self.embedder else None,
+        }
 
     def search_me(self, query_vec: np.ndarray, top_k: int = 5) -> List[RetrievedClause]:
         # Placeholder: real Matching Engine requires deployed index and datapoints

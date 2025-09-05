@@ -12,6 +12,7 @@ export function BatchScoring({
   k = 5,
   buildItems,
   className,
+  onResult,
 }: {
   sessionId: string;
   orgId: string;
@@ -19,6 +20,7 @@ export function BatchScoring({
   k?: number;
   buildItems: () => BatchItem[];
   className?: string;
+  onResult?: (res: { items: any[]; composite_score: number }) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ items: any[]; composite_score: number } | null>(null);
@@ -32,13 +34,14 @@ export function BatchScoring({
         return;
       }
       const res = await apiFetch<{ items: any[]; composite_score: number }>(
-        '/adk/score/batch',
+        '/api/adk/score/batch',
         {
           method: 'POST',
           body: JSON.stringify({ session_id: sessionId, org_id: orgId, user_id: 'anonymous', framework, items, k }),
         }
       );
       setResult(res);
+      try { onResult?.(res); } catch {}
       toast.success('Batch scored');
     } catch (e) {
       toast.error('Failed to run batch scoring');
@@ -49,8 +52,8 @@ export function BatchScoring({
 
   return (
     <div className={className}>
-      <button onClick={run} disabled={loading} className="px-4 py-2 rounded-md border">
-        {loading ? 'Scoring…' : 'Run Batch Scoring'}
+      <button onClick={run} disabled={loading} className="px-4 py-2 rounded-md border w-full">
+        {loading ? 'Scoring…' : 'Score All Answered'}
       </button>
       {result && (
         <div className="mt-3 rounded-md border p-3 bg-card">

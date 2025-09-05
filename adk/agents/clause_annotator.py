@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Iterable, List, Dict
+from typing import Iterable, List, Dict, Any, Optional
 import re
 
 from PyPDF2 import PdfReader  # type: ignore
 from docx import Document  # type: ignore
+from pydantic import BaseModel
 
 
 @dataclass
@@ -82,3 +83,26 @@ class ClauseAnnotatorAgent:
     @staticmethod
     def to_jsonl(clauses: List[Clause]) -> List[Dict]:
         return [asdict(c) for c in clauses]
+
+    # Structured API types
+    class AnnotateRequest(BaseModel):
+        paths: List[str]
+
+    class AnnotateResponse(BaseModel):
+        clauses: List[Dict[str, Any]]
+        count: int
+
+    def annotate_structured(self, req: "ClauseAnnotatorAgent.AnnotateRequest") -> "ClauseAnnotatorAgent.AnnotateResponse":
+        paths = [Path(p) for p in req.paths]
+        out = self.annotate(paths)
+        payload = self.to_jsonl(out)
+        return ClauseAnnotatorAgent.AnnotateResponse(clauses=payload, count=len(payload))
+
+    def health(self) -> Dict[str, Optional[str]]:
+        try:
+            supported = [".pdf", ".docx", ".txt", "*"]
+            # Try minimal call path without IO
+            ok = True
+        except Exception:
+            ok = False
+        return {"ok": "true" if ok else "false", "supported": ",".join(supported)}
